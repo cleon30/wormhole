@@ -33,7 +33,6 @@ import { execSync } from "child_process";
 import { Err, Ok } from "ts-results";
 import { ethers } from "ethers";
 import * as coreBridge from "./coreBridge";
-import * as tokenBridge from "./tokenBridge";
 import { createSecp256k1Instruction, GOVERNANCE_EMITTER_ADDRESS } from "./";
 import {
   createReadOnlyWormholeProgramInterface,

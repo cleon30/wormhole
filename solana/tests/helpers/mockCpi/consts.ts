@@ -1,1 +1,1 @@
-export type ProgramId = "MockCpi696969696969696969696969696969696969"; // localnet
+export type ProgramId = "7Z6JTqS5NQvxyFwTdYh9HCbwXESWy3qRP54dRnmahMGj"; // localnet

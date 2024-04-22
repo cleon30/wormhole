@@ -26,7 +26,6 @@ build: $(out_$(NETWORK))
 $(out_$(NETWORK)):
 ifdef out_$(NETWORK)
 	anchor build -p wormhole_core_bridge_solana --arch sbf -- --features "$(NETWORK),no-idl" -- --no-default-features
-	anchor build -p wormhole_token_bridge_solana --arch sbf -- --features "$(NETWORK),no-idl" -- --no-default-features
 	$(MAKE) prune_idl
 	mkdir -p $(out_$(NETWORK))
 	cp target/deploy/*.so $(out_$(NETWORK))/
@@ -35,7 +34,6 @@ endif
 test: node_modules
 	cargo test --all-features
 	anchor build -p wormhole_core_bridge_solana --arch sbf -- --features mainnet -- --no-default-features
-	anchor build -p wormhole_token_bridge_solana --arch sbf -- --features mainnet -- --no-default-features
 	mkdir -p tests/artifacts && cp target/deploy/*.so tests/artifacts/
 	anchor build --arch sbf -- --features localnet -- --no-default-features
 	$(MAKE) prune_idl

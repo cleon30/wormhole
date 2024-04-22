@@ -110,7 +110,7 @@ export const SOL_BRIDGE_ADDRESS =
     ? "worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth"
     : CLUSTER === "testnet"
     ? "Brdguy7BmNB4qwEbcqqMbyV5CyJd2sxQNUn6NEpMSsUb"
-    : "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o";
+    : "HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj";
 export const SOL_NFT_BRIDGE_ADDRESS =
   CLUSTER === "mainnet"
     ? "WnFt12ZrnzZrFZkt2xsNsaNWoQribnuQ5B5FrDbwDhD"
@@ -122,7 +122,7 @@ export const SOL_TOKEN_BRIDGE_ADDRESS =
     ? "wormDTUJ6AWPNvk59vGQbDvGJmqbDTdgWgAqcLBCgUb"
     : CLUSTER === "testnet"
     ? "A4Us8EhCC76XdGAN17L4KpRNEK423nMivVHZzZqFqqBg"
-    : "B6RHG3mfcckmrYN1UhmJzyS1XX3fZKbkeUcpJe9Sy3FE";
+    : "CiXCz22m2gQYe9NXzeAzruqZRUan5bYzRvMkVzBDQVJd";
 export const TERRA_BRIDGE_ADDRESS =
   CLUSTER === "mainnet"
     ? "terra1dq03ugtd40zu9hcgdzrsq6z2z4hwhc9tqk2uy5"

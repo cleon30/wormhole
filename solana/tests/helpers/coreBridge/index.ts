@@ -31,7 +31,7 @@ export function mainnet(): PublicKey {
 }
 
 export function localnet(): PublicKey {
-  return getProgramId("Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o");
+  return getProgramId("HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj");
 }
 
 export function testnet(): PublicKey {

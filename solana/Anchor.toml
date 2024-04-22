@@ -5,16 +5,14 @@ skip-lint = false
 [workspace]
 members = [
     "programs/core-bridge",
-    "programs/token-bridge",
     "programs/mock-cpi",
     "examples/core-bridge-hello-world",
 ]
 
 [programs.localnet]
-wormhole_core_bridge_solana = "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o"
-wormhole_token_bridge_solana = "B6RHG3mfcckmrYN1UhmJzyS1XX3fZKbkeUcpJe9Sy3FE"
-wormhole_mock_cpi_solana = "MockCpi696969696969696969696969696969696969"
-core_bridge_hello_world = "CoreBridgeHe11oWor1d11111111111111111111111"
+wormhole_core_bridge_solana = "HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj"
+wormhole_mock_cpi_solana = "7Z6JTqS5NQvxyFwTdYh9HCbwXESWy3qRP54dRnmahMGj"
+core_bridge_hello_world = "3oX72iMn9Z3D9FQ8dBJy6rXJHL1pjpmuj9BHLWuKh9Lz"
 
 [registry]
 url = "https://api.apr.dev"

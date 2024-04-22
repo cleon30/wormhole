@@ -527,8 +527,8 @@ const DEVNET = {
     nft_bridge: undefined,
   },
   solana: {
-    core: "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o",
-    token_bridge: "B6RHG3mfcckmrYN1UhmJzyS1XX3fZKbkeUcpJe9Sy3FE",
+    core: "HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj",
+    token_bridge: "CiXCz22m2gQYe9NXzeAzruqZRUan5bYzRvMkVzBDQVJd",
     nft_bridge: "NFTWqJR8YnRVqPDvTJrYuLrQDitTG5AScqbeghi4zSA",
   },
   terra: {

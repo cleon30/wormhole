@@ -3,7 +3,6 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import MockCpiIdl from "../../../target/idl/wormhole_mock_cpi_solana.json";
 import { WormholeMockCpiSolana } from "../../../target/types/wormhole_mock_cpi_solana";
 import * as coreBridge from "../coreBridge";
-import * as tokenBridge from "../tokenBridge";
 import { ProgramId } from "./consts";
 
 export * from "./consts";
@@ -16,7 +15,7 @@ export type MockCpiProgram = Program<WormholeMockCpiSolana>;
 export function getProgramId(programId?: ProgramId): PublicKey {
   return new PublicKey(
     programId === undefined
-      ? "MockCpi696969696969696969696969696969696969" // localnet
+      ? "7Z6JTqS5NQvxyFwTdYh9HCbwXESWy3qRP54dRnmahMGj" // localnet
       : programId
   );
 }
@@ -26,7 +25,7 @@ export function getAnchorProgram(connection: Connection, programId: PublicKey): 
 }
 
 export function localnet(): PublicKey {
-  return getProgramId("MockCpi696969696969696969696969696969696969");
+  return getProgramId("7Z6JTqS5NQvxyFwTdYh9HCbwXESWy3qRP54dRnmahMGj");
 }
 
 export function coreBridgeProgramId(program: MockCpiProgram): PublicKey {
@@ -35,12 +34,4 @@ export function coreBridgeProgramId(program: MockCpiProgram): PublicKey {
 
 export function getCoreBridgeProgram(program: MockCpiProgram): coreBridge.CoreBridgeProgram {
   return coreBridge.getAnchorProgram(program.provider.connection, coreBridgeProgramId(program));
-}
-
-export function tokenBridgeProgramId(program: MockCpiProgram): PublicKey {
-  return tokenBridge.localnet();
-}
-
-export function getTokenBridgeProgram(program: MockCpiProgram): tokenBridge.TokenBridgeProgram {
-  return tokenBridge.getAnchorProgram(program.provider.connection, tokenBridgeProgramId(program));
 }

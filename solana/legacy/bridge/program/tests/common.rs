@@ -76,7 +76,7 @@ mod helpers {
     /// each test has a fresh environment to work within.
     pub async fn setup() -> (BanksClient, Keypair, Pubkey) {
         let program = env::var("BRIDGE_PROGRAM")
-            .unwrap_or_else(|_| "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o".to_string())
+            .unwrap_or_else(|_| "HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj".to_string())
             .parse::<Pubkey>()
             .unwrap();
         let builder = ProgramTest::new("bridge", program, processor!(instruction::solitaire));

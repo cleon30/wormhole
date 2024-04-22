@@ -3,7 +3,7 @@
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "localnet")] {
-        declare_id!("Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o");
+        declare_id!("HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj");
     } else if #[cfg(feature = "mainnet")] {
         declare_id!("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");
     } else if #[cfg(feature = "testnet")] {

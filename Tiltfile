@@ -427,7 +427,7 @@ if solana or pythnet:
         context = "solana/legacy",
         dockerfile = "solana/legacy/Dockerfile",
         target = "builder",
-        build_args = {"BRIDGE_ADDRESS": "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o"}
+        build_args = {"BRIDGE_ADDRESS": "HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj"}
     )
 
     # solana local devnet

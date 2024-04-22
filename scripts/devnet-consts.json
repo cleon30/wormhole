@@ -13,9 +13,9 @@
       "rpcPort": "8899",
       "contracts": {
         "coreEmitterAddress": "VVStPLdubtbBUnMDhC3kt8fM3AE6NLRv73TAd3FCAen",
-        "coreNativeAddress": "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o",
+        "coreNativeAddress": "HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj",
         "tokenBridgeEmitterAddress": "ENG1wQ7CQKH8ibAJ1hSLmJgL9Ucg6DRDbj752ZAfidLA",
-        "tokenBridgeNativeAddress": "B6RHG3mfcckmrYN1UhmJzyS1XX3fZKbkeUcpJe9Sy3FE",
+        "tokenBridgeNativeAddress": "CiXCz22m2gQYe9NXzeAzruqZRUan5bYzRvMkVzBDQVJd",
         "nftBridgeEmitterAddress": "BABAnMBgBELTQnHabZqYa1thHKp834RDvud4rJ8EUr3k",
         "nftBridgeNativeAddress": "NFTWqJR8YnRVqPDvTJrYuLrQDitTG5AScqbeghi4zSA"
       },

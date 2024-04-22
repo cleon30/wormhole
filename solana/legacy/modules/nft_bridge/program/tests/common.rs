@@ -118,7 +118,7 @@ mod helpers {
     pub async fn setup() -> (BanksClient, Keypair, Pubkey, Pubkey) {
         let (program, token_program) = (
             env::var("BRIDGE_PROGRAM")
-                .unwrap_or_else(|_| "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o".to_string())
+                .unwrap_or_else(|_| "HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj".to_string())
                 .parse::<Pubkey>()
                 .unwrap(),
             env::var("NFT_BRIDGE_PROGRAM")

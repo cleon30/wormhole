@@ -152,11 +152,11 @@ With parameters (using proto json encoding):
 
 To Solana:
 
-    kubectl exec solana-devnet-0 -c setup -- client post-message Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o 1 confirmed ffff
+    kubectl exec solana-devnet-0 -c setup -- client post-message HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj 1 confirmed ffff
 
 To Solana as CPI instruction:
 
-    kubectl exec solana-devnet-0 -c setup -- client post-message --proxy CP1co2QMMoDPbsmV7PGcUTLFwyhgCgTXt25gLQ5LewE1 Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o 1 confirmed ffff
+    kubectl exec solana-devnet-0 -c setup -- client post-message --proxy CP1co2QMMoDPbsmV7PGcUTLFwyhgCgTXt25gLQ5LewE1 HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj 1 confirmed ffff
 
 ### Observation Requests
 

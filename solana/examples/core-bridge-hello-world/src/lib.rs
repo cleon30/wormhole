@@ -3,7 +3,7 @@
 use anchor_lang::prelude::*;
 use wormhole_core_bridge_solana::sdk as core_bridge;
 
-declare_id!("CoreBridgeHe11oWor1d11111111111111111111111");
+declare_id!("3oX72iMn9Z3D9FQ8dBJy6rXJHL1pjpmuj9BHLWuKh9Lz");
 
 #[derive(Accounts)]
 pub struct PublishHelloWorld<'info> {
