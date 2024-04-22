@@ -1,6 +1,6 @@
 # Develop
 
-## prerequisites
+## prerequsites
 
 - Go >= 1.16
 - nodejs >= 16

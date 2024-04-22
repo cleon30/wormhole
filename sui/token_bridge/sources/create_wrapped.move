@@ -90,7 +90,6 @@ module token_bridge::create_wrapped {
         setup
     }
 
-    #[allow(lint(share_owned))]
     /// This function performs the bulk of `prepare_registration`, except
     /// checking the module name. This separation is useful for testing.
     fun prepare_registration_internal<CoinType: drop, Version>(

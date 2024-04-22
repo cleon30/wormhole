@@ -247,7 +247,7 @@ export async function transferFromInjective(
           recipient: Buffer.from(recipientAddress).toString("base64"),
           fee: relayerFee,
           nonce,
-          payload: fromUint8Array(payload),
+          payload,
         }
       : {
           asset: {

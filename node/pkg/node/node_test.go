@@ -190,7 +190,7 @@ func mockGuardianRunnable(t testing.TB, gs []*mockGuardian, mockGuardianIndex ui
 			GuardianOptionNoAccountant(), // disable accountant
 			GuardianOptionGovernor(true),
 			GuardianOptionGatewayRelayer("", nil), // disable gateway relayer
-			GuardianOptionP2P(gs[mockGuardianIndex].p2pKey, networkID, bootstrapPeers, nodeName, false, cfg.p2pPort, "", 0, "", "", func() string { return "" }),
+			GuardianOptionP2P(gs[mockGuardianIndex].p2pKey, networkID, bootstrapPeers, nodeName, false, cfg.p2pPort, "", 0, "", func() string { return "" }),
 			GuardianOptionPublicRpcSocket(cfg.publicSocket, publicRpcLogDetail),
 			GuardianOptionPublicrpcTcpService(cfg.publicRpc, publicRpcLogDetail),
 			GuardianOptionPublicWeb(cfg.publicWeb, cfg.publicSocket, "", false, ""),
@@ -906,14 +906,7 @@ func TestGuardianConfigs(t *testing.T) {
 		{
 			name: "unfulfilled-dependency",
 			opts: []*GuardianOption{
-				GuardianOptionAccountant(
-					"",    // websocket
-					"",    // contract
-					false, // enforcing
-					nil,   // wormchainConn
-					"",    // nttContract
-					nil,   // nttWormchainConn
-				),
+				GuardianOptionAccountant("", "", false, nil),
 			},
 			err: "Check the order of your options.",
 		},

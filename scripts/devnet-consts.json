@@ -103,10 +103,12 @@
       "rpcUrlLocal": "http://localhost:1317",
       "rpcPort": "1317",
       "contracts": {
-        "coreEmitterAddress": "terra14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9ssrc8au",
-        "coreNativeAddress": "terra14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9ssrc8au",
-        "tokenBridgeEmitterAddress": "terra1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrquka9l6",
-        "tokenBridgeNativeAddress": "terra1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrquka9l6"
+        "coreEmitterAddress": "terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5",
+        "coreNativeAddress": "terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5",
+        "tokenBridgeEmitterAddress": "terra10pyejy66429refv3g35g2t7am0was7ya7kz2a4",
+        "tokenBridgeNativeAddress": "terra10pyejy66429refv3g35g2t7am0was7ya7kz2a4",
+        "nftBridgeEmitterAddress": "terra1plju286nnfj3z54wgcggd4enwaa9fgf5kgrgzl",
+        "nftBridgeNativeAddress": "terra10nmmwe8r3g99a9newtqa7a75xfgs2e8z87r2sf"
       },
       "accounts": {
         "testWallet": {
@@ -117,10 +119,16 @@
       },
       "addresses": {
         "testToken": {
-          "address": "terra1zwv6feuzhy6a9wekh96cd57lsarmqlwxdypdsplw6zhfncqw6ftqynf7kp",
+          "address": "terra13nkgqrfymug724h8pprpexqj9h629sa3ncw7sh",
           "name": "MOCK",
           "symbol": "MCK",
           "decimals": 6
+        },
+        "testNFT": {
+          "address": "terra18dt935pdcn2ka6l0syy5gt20wa48n3mktvdvjj",
+          "name": "MOCK",
+          "symbol": "MCK",
+          "decimals": 0
         }
       }
     },
@@ -176,7 +184,7 @@
     },
     "21": {
       "contracts": {
-        "tokenBridgeEmitterAddress": "8c6ba6a65f1b9c7fba4c5ad710086ace208e9ac21786a923425efc8167a419f0"
+        "tokenBridgeEmitterAddress": "be8d2e6809d4873bcf1d8be6af2b92500091ad6aa5dc76bc717af86a58d300ca"
       }
     },
     "22": {
@@ -305,16 +313,6 @@
       "name": "10",
       "public": "0x610bb1573d1046fcb8a70bbbd395754cd57c2b60",
       "private": "0x77c5495fbb039eed474fc940f29955ed0531693cc9212911efd35dff0373153f"
-    },
-    {
-      "name": "11",
-      "public": "0x855FA758c77D68a04990E992aA4dcdeF899F654A",
-      "private": "0xd99b5b29e6da2528bf458b26237a6cf8655a3e3276c1cdc0de1f98cefee81c01"
-    },
-    {
-      "name": "12",
-      "public": "0xfA2435Eacf10Ca62ae6787ba2fB044f8733Ee843",
-      "private": "0x9b9c613a36396172eab2d34d72331c8ca83a358781883a535d2941f66db07b24"
     }
   ],
   "devnetGuardians": [

@@ -49,7 +49,11 @@ build: forge_dependencies node_modules ${SOURCE_FILES}
 	
 
 flattened/%.sol: contracts/%.sol node_modules
-	./sh/flatten.sh
+	@mkdir -p $(dir $@)
+    # We remove the license (SPDX) lines and ABIEncoderV2 lines because they
+    # break compilation in the flattened file if there are multiple conflicting
+    # declarations.
+	npx truffle-flattener $< | grep -v SPDX | grep -v ABIEncoderV2 > $@
 
 .PHONY: flattened
 flattened: $(patsubst contracts/%, flattened/%, $(FLATTEN_FILES))
@@ -80,11 +84,6 @@ test-identifiers: dependencies
 .PHONY:
 test-forge: dependencies
 	forge test --no-match-test .*_KEVM # ignore KEVM tests (see PROOFS.md)
-
-# Verify that the contracts do not include PUSH0 opcodes
-test-push0: dependencies
-	forge build --extra-output evm.bytecode.opcodes
-	@if grep -qr --include \*.json PUSH0 ./build-forge; then echo "Contract uses PUSH0 instruction" 1>&2; exit 1; fi
 
 clean:
 	rm -rf ganache.log .env node_modules build flattened build-forge ethers-contracts lib/forge-std lib/openzeppelin-contracts

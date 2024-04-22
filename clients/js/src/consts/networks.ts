@@ -92,6 +92,8 @@ const MAINNET = {
     rpc: "https://rpc.mainnet.near.org",
     key: getEnvVar("NEAR_KEY"),
     networkId: "mainnet",
+    deployerAccount:
+      "85957f38de1768d6db9eab29bee9dd2a01462aff9c8d83daefb9bcd2506c32d2",
   },
   injective: {
     rpc: "http://sentry0.injective.network:26657",
@@ -163,8 +165,8 @@ const MAINNET = {
     chain_id: 8453,
   },
   sei: {
-    rpc: "https://sei-rpc.polkachu.com/",
-    key: getEnvVar("SEI_KEY"),
+    rpc: undefined,
+    key: undefined,
   },
   rootstock: {
     rpc: "https://public-node.rsk.co",
@@ -172,11 +174,6 @@ const MAINNET = {
     chain_id: 30,
   },
   sepolia: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  holesky: {
     rpc: undefined,
     key: undefined,
     chain_id: undefined,
@@ -192,61 +189,6 @@ const MAINNET = {
     chain_id: undefined,
   },
   kujira: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  neutron: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  celestia: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  scroll: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  mantle: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  arbitrum_sepolia: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  base_sepolia: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  optimism_sepolia: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  polygon_sepolia: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  stargaze: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  seda: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  dymension: {
     rpc: undefined,
     key: undefined,
     chain_id: undefined,
@@ -330,6 +272,7 @@ const TESTNET = {
     rpc: "https://rpc.testnet.near.org",
     key: getEnvVar("NEAR_KEY_TESTNET"),
     networkId: "testnet",
+    deployerAccount: "wormhole.testnet",
   },
   injective: {
     rpc: "https://k8s.testnet.tm.injective.network:443",
@@ -366,11 +309,6 @@ const TESTNET = {
     rpc: "https://rpc.ankr.com/eth_sepolia",
     key: getEnvVar("ETH_KEY_TESTNET"),
     chain_id: 11155111,
-  },
-  holesky: {
-    rpc: "https://rpc.ankr.com/eth_holesky",
-    key: getEnvVar("ETH_KEY_TESTNET"),
-    chain_id: 17000,
   },
   btc: {
     rpc: undefined,
@@ -431,61 +369,6 @@ const TESTNET = {
     chain_id: undefined,
   },
   kujira: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  neutron: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  celestia: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  scroll: {
-    rpc: "https://rpc.ankr.com/scroll_sepolia_testnet",
-    key: getEnvVar("ETH_KEY_TESTNET"),
-    chain_id: 534353,
-  },
-  mantle: {
-    rpc: "https://mantle-sepolia.drpc.org",
-    key: getEnvVar("ETH_KEY_TESTNET"),
-    chain_id: 5003,
-  },
-  arbitrum_sepolia: {
-    rpc: "https://arbitrum-sepolia.publicnode.com",
-    key: getEnvVar("ETH_KEY_TESTNET"),
-    chain_id: 421614,
-  },
-  base_sepolia: {
-    rpc: "https://sepolia.base.org",
-    key: getEnvVar("ETH_KEY_TESTNET"),
-    chain_id: 84532,
-  },
-  optimism_sepolia: {
-    rpc: "https://rpc.ankr.com/optimism_sepolia",
-    key: getEnvVar("ETH_KEY_TESTNET"),
-    chain_id: 11155420,
-  },
-  polygon_sepolia: {
-    rpc: "https://rpc-amoy.polygon.technology/",
-    key: getEnvVar("ETH_KEY_TESTNET"),
-    chain_id: 80002,
-  },
-  stargaze: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  seda: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  dymension: {
     rpc: undefined,
     key: undefined,
     chain_id: undefined,
@@ -558,6 +441,7 @@ const DEVNET = {
     rpc: undefined,
     key: undefined,
     networkId: "sandbox",
+    deployerAccount: "test.near",
   },
   injective: {
     rpc: undefined,
@@ -585,10 +469,6 @@ const DEVNET = {
     key: undefined,
   },
   sepolia: {
-    rpc: undefined,
-    key: undefined,
-  },
-  holesky: {
     rpc: undefined,
     key: undefined,
   },
@@ -649,61 +529,6 @@ const DEVNET = {
   kujira: {
     rpc: undefined,
     key: undefined,
-  },
-  neutron: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  celestia: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  scroll: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  mantle: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  arbitrum_sepolia: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  base_sepolia: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  optimism_sepolia: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  polygon_sepolia: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  stargaze: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  seda: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
-  },
-  dymension: {
-    rpc: undefined,
-    key: undefined,
-    chain_id: undefined,
   },
 };
 

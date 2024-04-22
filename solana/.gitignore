@@ -1,0 +1,11 @@
+.DS_Store
+.anchor
+.env
+.private
+.vscode
+**/*.rs.bk
+artifacts-*
+node_modules
+target
+test-ledger
+tests/artifacts

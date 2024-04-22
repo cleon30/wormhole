@@ -34,7 +34,8 @@ jobs:
           kubectl config set-context ci --namespace=$DEPLOY_NS
           kubectl config use-context ci
 
-      - run: tilt ci --timeout 45m0s -- --ci --namespace=$DEPLOY_NS --num=2
+      # temporarily set --guardiand_loglevel=info to debug https://github.com/wormhole-foundation/wormhole/issues/3052
+      - run: tilt ci -- --ci --namespace=$DEPLOY_NS --num=2 --guardiand_loglevel=info
         timeout-minutes: 60
 
       # Clean up k8s resources
@@ -70,18 +71,7 @@ jobs:
           node-version: "16"
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
-      - run: cd ethereum && make test-push0 && make test
-
-  relayer-ethereum:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
-        with:
-          node-version: "16"
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-      - run: cd relayer/ethereum && make test-push0 && make test
+      - run: cd ethereum && make test
 
   ethereum-upgrade:
     runs-on: ubuntu-latest
@@ -94,8 +84,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
       - run: cd clients/js && make install
       - run: cd ethereum && make test-upgrade
-
-  solana:
+  solana-legacy:
     runs-on: ubuntu-20.04
     env:
       RUSTFLAGS: -Dwarnings
@@ -107,13 +96,13 @@ jobs:
       - name: Get rust toolchain version
         id: toolchain
         run: |
-          RUST_VERSION="$(awk '/channel =/ { print substr($3, 2, length($3)-2) }' solana/rust-toolchain)"
+          RUST_VERSION="$(awk '/channel =/ { print substr($3, 2, length($3)-2) }' solana/legacy/rust-toolchain)"
           echo "::set-output name=version::${RUST_VERSION}"
 
       - name: Get solana version
         id: solana
         run: |
-          SOLANA_VERSION="$(awk '/solana-program =/ { print substr($3, 3, length($3)-3) }' solana/bridge/program/Cargo.toml)"
+          SOLANA_VERSION="$(awk '/solana-program =/ { print substr($3, 3, length($3)-3) }' solana/legacy/bridge/program/Cargo.toml)"
           echo "::set-output name=version::${SOLANA_VERSION}"
 
       - name: Cache rust toolchain
@@ -145,22 +134,22 @@ jobs:
             ~/.cargo/bin
             ~/.cargo/registry
             ~/.cargo/git/db
-            solana/target
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('solana/Cargo.lock') }}
+            solana/legacy/target
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('solana/legacy/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-build-${{ env.cache-name }}-
             ${{ runner.os }}-build-
             ${{ runner.os }}-
 
       - name: Run `cargo fmt`
-        run: cargo fmt --check --all --manifest-path solana/Cargo.toml
+        run: cargo fmt --check --all --manifest-path solana/legacy/Cargo.toml
 
       - name: Run `cargo check`
-        run: cargo check --workspace --tests --manifest-path solana/Cargo.toml
+        run: cargo check --workspace --tests --manifest-path solana/legacy/Cargo.toml
           --features "nft-bridge/instructions token-bridge/instructions wormhole-bridge-solana/instructions"
 
       - name: Run `cargo clippy`
-        run: cargo clippy --workspace --tests --manifest-path solana/Cargo.toml
+        run: cargo clippy --workspace --tests --manifest-path solana/legacy/Cargo.toml
           --features "nft-bridge/instructions token-bridge/instructions wormhole-bridge-solana/instructions"
 
       - name: Cache solana tools
@@ -186,7 +175,7 @@ jobs:
         env:
           RUST_BACKTRACE: "1"
         run: |
-          cd solana
+          cd solana/legacy
           export BPF_OUT_DIR="$(pwd)/target/deploy"
           export PATH="${HOME}/.local/share/solana/install/active_release/bin:${PATH}"
 
@@ -318,19 +307,6 @@ jobs:
           docker build --target go-export -f Dockerfile.proto -o type=local,dest=node .
           git diff --name-only --exit-code && echo "✅ Generated proto matches committed proto" || (echo "❌ Generated proto differs from committed proto, run \`rm -rf node/pkg/proto && docker build --target go-export -f Dockerfile.proto -o type=local,dest=node .\` and commit the result" >&2 && exit 1)
 
-  spellcheck:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # Pinned version of the v6 tag, which is a lightweight and hence mutable tag
-      - uses: streetsidesoftware/cspell-action@214db1e3138f326d33b7a6a51c92852e89ab0618
-        with:
-          # For now, only lint markdown files
-          files: "**/*.md"
-          inline: warning
-          # Only check files in the PR or push
-          incremental_files_only: true
-
   # Run Go tests
   node-tests:
     # The tests are slow enough that we want to run it on the self-hosted runner
@@ -358,13 +334,9 @@ jobs:
     strategy:
       matrix:
         manifest:
-          - path: cosmwasm/Cargo.toml
-            args: "--workspace --locked"
-          - path: terra/Cargo.toml
-            args: "--workspace --locked"
-          - path: sdk/rust/Cargo.toml
-            args: "--all-features --all-targets"
-    name: rust-lint-and-tests (${{ matrix.manifest.path }})
+          - cosmwasm/Cargo.toml
+          - terra/Cargo.toml
+          - sdk/rust/Cargo.toml
     steps:
       - name: Check out source
         uses: actions/checkout@v3
@@ -378,7 +350,7 @@ jobs:
       - name: Create cache key
         id: cachekey
         env:
-          MANIFEST: ${{ matrix.manifest.path }}
+          MANIFEST: ${{ matrix.manifest }}
         run: |
           LOCKFILE="$(dirname "${MANIFEST}")/Cargo.lock"
           NAME="${MANIFEST%%/*}"
@@ -392,16 +364,20 @@ jobs:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-build-${{ steps.cachekey.outputs.name }}-${{ steps.cachekey.outputs.hash }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ matrix.manifest.path }}-
+            ${{ runner.os }}-build-${{ matrix.manifest }}-
 
       - name: Run `rustfmt`
-        run: cd $(dirname ${{ matrix.manifest.path }}) && cargo fmt --check
+        env:
+          MANIFEST: ${{ matrix.manifest }}
+        # In its infinite wisdom, `cargo fmt --all` will also format path-based dependencies so
+        # instead we have to manually format each ".rs" file.
+        run: find "$(dirname "${MANIFEST}")" -name '*.rs' -exec rustfmt --check {} +
 
       - name: Run `cargo clippy`
-        run: cargo clippy ${{ matrix.manifest.args }} --tests --manifest-path ${{ matrix.manifest.path }}
+        run: cargo clippy --workspace --tests --locked --manifest-path ${{ matrix.manifest }}
 
       - name: Run unit tests
-        run: cargo test ${{ matrix.manifest.args }} --manifest-path ${{ matrix.manifest.path }}
+        run: cargo test --workspace --locked --manifest-path ${{ matrix.manifest }}
 
   docker:
     runs-on: ubuntu-latest

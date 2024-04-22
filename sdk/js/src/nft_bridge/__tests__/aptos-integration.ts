@@ -55,6 +55,8 @@ import {
   getSignedVaaSolana,
 } from "./utils/getSignedVaa";
 
+jest.setTimeout(60000);
+
 const APTOS_NFT_BRIDGE_ADDRESS = CONTRACTS.DEVNET.aptos.nft_bridge;
 const ETH_NFT_BRIDGE_ADDRESS = CONTRACTS.DEVNET.ethereum.nft_bridge;
 const SOLANA_NFT_BRIDGE_ADDRESS = CONTRACTS.DEVNET.solana.nft_bridge;
@@ -67,7 +69,7 @@ let faucet: FaucetClient;
 
 // ethereum setup
 const web3 = new Web3(ETH_NODE_URL);
-const ethProvider = new ethers.providers.JsonRpcProvider(ETH_NODE_URL);
+const ethProvider = new ethers.providers.WebSocketProvider(ETH_NODE_URL);
 const ethSigner = new ethers.Wallet(ETH_PRIVATE_KEY8, ethProvider);
 
 // solana setup
@@ -84,6 +86,7 @@ beforeEach(async () => {
 
 afterAll(async () => {
   (web3.currentProvider as any).disconnect();
+  await ethProvider.destroy();
 });
 
 describe("Aptos NFT SDK tests", () => {
@@ -109,7 +112,6 @@ describe("Aptos NFT SDK tests", () => {
       CHAIN_ID_APTOS,
       aptosAccount.address().toUint8Array()
     );
-    await ethProvider.send("anvil_mine", ["0x40"]); // 64 blocks should get the above block to `finalized`
 
     // observe tx and get vaa
     const ethTransferVaa = await getSignedVaaEthereum(ethTransferTx);
@@ -311,7 +313,6 @@ describe("Aptos NFT SDK tests", () => {
       tryNativeToUint8Array(aptosAccount.address().toString(), CHAIN_ID_APTOS)
     );
     expect(ethTransferTx.status).toBe(1);
-    await ethProvider.send("anvil_mine", ["0x40"]); // 64 blocks should get the above block to `finalized`
 
     // observe tx and get vaa
     const ethTransferVaa = await getSignedVaaEthereum(ethTransferTx);
@@ -454,7 +455,6 @@ describe("Aptos NFT SDK tests", () => {
       CHAIN_ID_APTOS,
       aptosAccount.address().toUint8Array()
     );
-    await ethProvider.send("anvil_mine", ["0x40"]); // 64 blocks should get the above block to `finalized`
 
     // observe txs and get vaas
     const ethTransferVaa1 = await getSignedVaaEthereum(ethTransferTx1);

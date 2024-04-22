@@ -19,9 +19,6 @@ type (
 		// maxCacheSize is used to trim the cache.
 		maxCacheSize int
 
-		// unsafeDevMode is used to suppress warnings in dev mode.
-		unsafeDevMode bool
-
 		// mutex is used to protect the cache.
 		mutex sync.Mutex
 	}
@@ -35,11 +32,10 @@ type (
 )
 
 // NewBlocksByTimestamp creates an empty cache of blocks by timestamp.
-func NewBlocksByTimestamp(maxCacheSize int, unsafeDevMode bool) *BlocksByTimestamp {
+func NewBlocksByTimestamp(maxCacheSize int) *BlocksByTimestamp {
 	return &BlocksByTimestamp{
-		cache:         Blocks{},
-		maxCacheSize:  maxCacheSize,
-		unsafeDevMode: unsafeDevMode,
+		cache:        Blocks{},
+		maxCacheSize: maxCacheSize,
 	}
 }
 
@@ -59,15 +55,12 @@ func (bts *BlocksByTimestamp) AddLatest(logger *zap.Logger, timestamp uint64, bl
 			}
 		}
 
-		// Anvil trips this when using `anvil_mine`
-		if !bts.unsafeDevMode {
-			logger.Warn("rollback detected in timestamp cache",
-				zap.Uint64("oldLatestBlockNum", bts.cache[l-1].BlockNum),
-				zap.Uint64("oldLatestTimestamp", bts.cache[l-1].Timestamp),
-				zap.Uint64("newLatestBlockNum", blockNum),
-				zap.Uint64("newLatestTimestamp", timestamp),
-			)
-		}
+		logger.Warn("rollback detected in timestamp cache",
+			zap.Uint64("oldLatestBlockNum", bts.cache[l-1].BlockNum),
+			zap.Uint64("oldLatestTimestamp", bts.cache[l-1].Timestamp),
+			zap.Uint64("newLatestBlockNum", blockNum),
+			zap.Uint64("newLatestTimestamp", timestamp),
+		)
 		bts.cache = bts.cache[:idx+1]
 	}
 

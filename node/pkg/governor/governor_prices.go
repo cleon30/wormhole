@@ -12,10 +12,8 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"math/rand"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -109,7 +107,7 @@ func (gov *ChainGovernor) PriceQuery(ctx context.Context) error {
 	// Do a query immediately, then once each interval.
 	// We ignore the error because an error would already have been logged, and we don't want to bring down the
 	// guardian due to a CoinGecko error. The prices would already have been reverted to the config values.
-	_ = gov.queryCoinGecko(ctx)
+	_ = gov.queryCoinGecko()
 
 	ticker := time.NewTicker(time.Duration(coinGeckoQueryIntervalInMins) * time.Minute)
 	defer ticker.Stop()
@@ -119,7 +117,7 @@ func (gov *ChainGovernor) PriceQuery(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			_ = gov.queryCoinGecko(ctx)
+			_ = gov.queryCoinGecko()
 		}
 	}
 }
@@ -128,36 +126,9 @@ func (gov *ChainGovernor) PriceQuery(ctx context.Context) error {
 // return an error, but that is only used by the tool that validates the query. In the actual governor,
 // it just logs the error and we will try again next interval. If an error happens, any tokens that have
 // not been updated will be assigned their pre-configured price.
-func (gov *ChainGovernor) queryCoinGecko(ctx context.Context) error {
+func (gov *ChainGovernor) queryCoinGecko() error {
 	result := make(map[string]interface{})
-
-	// Cache buster of Unix timestamp concatenated with random number
-	params := url.Values{}
-	params.Add("bust", strconv.Itoa(int(time.Now().Unix()))+strconv.Itoa(rand.Int())) // #nosec G404
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	// Throttle the queries to the CoinGecko API. We query for 200 tokens at a time, so this throttling would
-	// allow us to query up to 12,000 tokens in a 15 minute window (the query interval). Currently there are
-	// between 1000 and 2000 tokens.
-	throttle := make(chan int, 1)
-	go func() {
-		ticker := time.NewTicker(time.Duration(15) * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				throttle <- 1
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
 	for queryIdx, query := range gov.coinGeckoQueries {
-		<-throttle
-		query := query + "&" + params.Encode()
 		thisResult, err := gov.queryCoinGeckoChunk(query)
 		if err != nil {
 			gov.logger.Error("CoinGecko query failed", zap.Int("queryIdx", queryIdx), zap.String("query", query), zap.Error(err))
@@ -321,7 +292,7 @@ func CheckQuery(logger *zap.Logger) error {
 	}
 
 	logger.Info("Initiating CoinGecko query.")
-	if err := gov.queryCoinGecko(ctx); err != nil {
+	if err := gov.queryCoinGecko(); err != nil {
 		return err
 	}
 

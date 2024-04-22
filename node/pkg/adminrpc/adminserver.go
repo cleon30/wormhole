@@ -184,35 +184,6 @@ func tokenBridgeRegisterChain(req *nodev1.BridgeRegisterChain, timestamp time.Ti
 	return v, nil
 }
 
-// recoverChainId converts a nodev1.RecoverChainId message to its canonical VAA representation.
-// Returns an error if the data is invalid.
-func recoverChainId(req *nodev1.RecoverChainId, timestamp time.Time, guardianSetIndex uint32, nonce uint32, sequence uint64) (*vaa.VAA, error) {
-	evm_chain_id_big := big.NewInt(0)
-	evm_chain_id_big, ok := evm_chain_id_big.SetString(req.EvmChainId, 10)
-	if !ok {
-		return nil, errors.New("invalid evm_chain_id")
-	}
-
-	// uint256 has Bytes32 method for easier serialization
-	evm_chain_id, overflow := uint256.FromBig(evm_chain_id_big)
-	if overflow {
-		return nil, errors.New("evm_chain_id overflow")
-	}
-
-	if req.NewChainId > math.MaxUint16 {
-		return nil, errors.New("invalid new_chain_id")
-	}
-
-	v := vaa.CreateGovernanceVAA(timestamp, nonce, sequence, guardianSetIndex,
-		vaa.BodyRecoverChainId{
-			Module:     req.Module,
-			EvmChainID: evm_chain_id,
-			NewChainID: vaa.ChainID(req.NewChainId),
-		}.Serialize())
-
-	return v, nil
-}
-
 // accountantModifyBalance converts a nodev1.AccountantModifyBalance message to its canonical VAA representation.
 // Returns an error if the data is invalid.
 func accountantModifyBalance(req *nodev1.AccountantModifyBalance, timestamp time.Time, guardianSetIndex uint32, nonce uint32, sequence uint64) (*vaa.VAA, error) {
@@ -592,8 +563,6 @@ func GovMsgToVaa(message *nodev1.GovernanceMessage, currentSetIndex uint32, time
 		v, err = tokenBridgeRegisterChain(payload.BridgeRegisterChain, timestamp, currentSetIndex, message.Nonce, message.Sequence)
 	case *nodev1.GovernanceMessage_BridgeContractUpgrade:
 		v, err = tokenBridgeUpgradeContract(payload.BridgeContractUpgrade, timestamp, currentSetIndex, message.Nonce, message.Sequence)
-	case *nodev1.GovernanceMessage_RecoverChainId:
-		v, err = recoverChainId(payload.RecoverChainId, timestamp, currentSetIndex, message.Nonce, message.Sequence)
 	case *nodev1.GovernanceMessage_AccountantModifyBalance:
 		v, err = accountantModifyBalance(payload.AccountantModifyBalance, timestamp, currentSetIndex, message.Nonce, message.Sequence)
 	case *nodev1.GovernanceMessage_WormchainStoreCode:
@@ -970,8 +939,8 @@ func (s *nodePrivilegedService) SignExistingVAA(ctx context.Context, req *nodev1
 
 	// Make sure there are no duplicates. Compact needs to take a sorted slice to remove all duplicates.
 	newGSSorted := slices.Clone(newGS)
-	slices.SortFunc(newGSSorted, func(a, b ethcommon.Address) int {
-		return bytes.Compare(a[:], b[:])
+	slices.SortFunc(newGSSorted, func(a, b ethcommon.Address) bool {
+		return bytes.Compare(a[:], b[:]) < 0
 	})
 	newGsLen := len(newGSSorted)
 	if len(slices.Compact(newGSSorted)) != newGsLen {
@@ -1021,13 +990,8 @@ func (s *nodePrivilegedService) SignExistingVAA(ctx context.Context, req *nodev1
 	newVAA.AddSignature(s.gk, uint8(localGuardianIndex))
 
 	// Sort VAA signatures by guardian ID
-	slices.SortFunc(newVAA.Signatures, func(a, b *vaa.Signature) int {
-		if a.Index < b.Index {
-			return -1
-		} else if a.Index > b.Index {
-			return 1
-		}
-		return 0
+	slices.SortFunc(newVAA.Signatures, func(a, b *vaa.Signature) bool {
+		return a.Index < b.Index
 	})
 
 	newVAABytes, err := newVAA.Marshal()
@@ -1125,17 +1089,15 @@ func (s *nodePrivilegedService) GetAndObserveMissingVAAs(ctx context.Context, re
 		hasVaa, err := s.db.HasVAA(vaaKey)
 		if err != nil || hasVaa {
 			errMsgs += fmt.Sprintf("\nerror checking for VAA %s", missingVAA.VaaKey)
-			errCounter++
 			continue
 		}
 		var obsvReq gossipv1.ObservationRequest
 		obsvReq.ChainId = uint32(missingVAA.Chain)
-		obsvReq.TxHash, err = hex.DecodeString(strings.TrimPrefix(missingVAA.Txhash, "0x"))
+		obsvReq.TxHash, err = hex.DecodeString(missingVAA.Txhash)
 		if err != nil {
 			obsvReq.TxHash, err = base58.Decode(missingVAA.Txhash)
 			if err != nil {
 				errMsgs += "Invalid transaction hash (neither hex nor base58)"
-				errCounter++
 				continue
 			}
 		}

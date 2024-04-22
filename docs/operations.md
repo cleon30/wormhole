@@ -52,8 +52,6 @@ Be aware that these require extra disk space!
 If you use the same RPC node for Wormhole v1, you also need the following additional parameters to speed up
 `getProgramAccount` queries:
 
-<!-- cspell:disable -->
-
 ```
 [... see above for other required parameters ...]
 
@@ -61,8 +59,6 @@ If you use the same RPC node for Wormhole v1, you also need the following additi
 --account-index-include-key WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC   # for mainnet
 --account-index-include-key 5gQf5AUhAgWYgUCt9ouShm9H7dzzXUsLdssYwe5krKhg  # for testnet
 ```
-
-<!-- cspell:enable -->
 
 Alternatively, if you want to run a general-purpose RPC node with indexes for all programs instead of only Wormhole,
 leave out the filtering:
@@ -73,14 +69,10 @@ leave out the filtering:
 
 On mainnet, we strongly recommend blacklisting KIN and the token program to speed up catchup:
 
-<!-- cspell:disable -->
-
 ```
 --account-index-exclude-key kinXdEcpDQeHPEuQnqmUgtYykqKGVFq6CeVX5iAHJq6  # Mainnet only
 --account-index-exclude-key TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA  # Mainnet only
 ```
-
-<!-- cspell:enable -->
 
 Note that these indexes require extra disk space and may slow down catchup. The first startup after
 adding these parameters will be slow since Solana needs to recreate all indexes.
@@ -154,7 +146,7 @@ The key file includes a human-readable part which includes the public key hashes
 
 We strongly recommend a separate user and systemd services for the Wormhole services.
 
-See the separate [wormhole-networks](https://github.com/wormhole-foundation/wormhole-networks) repository for examples
+See the separate [wormhole-networks](https://github.com/certusone/wormhole-networks) repository for examples
 on how to set up the guardiand unit for a specific network.
 
 You need to open port 8999/udp in your firewall for the P2P network. Nothing else has to be exposed externally.
@@ -179,7 +171,7 @@ You can use a command line argument to expose it publicly: `--statusAddr=[::]:60
 This endpoint returns a 200 OK status code once the Wormhole node is ready to serve requests. A node is
 considered ready as soon as it has successfully connected to all chains and started processing requests.
 
-This is **only for startup signaling** - it will not tell whether it _stopped_
+This is **only for startup signalling** - it will not tell whether it _stopped_
 processing requests at some later point. Once it's true, it stays true! Use metrics to figure that out.
 
 #### `/metrics`
@@ -261,16 +253,7 @@ is why it requires extra capabilities. Yes, other chains might want to do this t
 
 Storing keys on an HSM or using remote signers only partially mitigates the risk of server compromise - it means the key
 can't get stolen, but an attacker could still cause the HSM to sign malicious payloads. Future iterations of Wormhole
-may include support for remote signing.
-
-## Bootstrap Peers
-
-The list of supported bootstrap peers is defined in `node/pkg/p2p/network_consts.go`. That file also provides golang functions
-for obtaining the network parameters (network ID and bootstrap peers) based on the environment (mainnet or testnet).
-
-The common Wormhole applications (guardiand, spy and query proxy server) use those functions, so it is not necessary to specify
-the actual bootstrap parameters in their configs. Developers of any new applications are strongly urged to do the same, and not
-proliferate lists of bootstrap peers which might change over time.
+may include support for remote signing using a signer like [SignOS](https://certus.one/sign-os/).
 
 ## Run the Guardian Spy
 
@@ -278,83 +261,22 @@ The spy connects to the wormhole guardian peer to peer network and listens for n
 
 Start the spy against the testnet wormhole guardian:
 
-<!-- cspell:disable -->
-
 ```bash
 docker run \
     --platform=linux/amd64 \
     -p 7073:7073 \
     --entrypoint /guardiand \
     ghcr.io/wormhole-foundation/guardiand:latest \
-    spy --nodeKey /node.key --spyRPC "[::]:7073" --env testnet
+spy --nodeKey /node.key --spyRPC "[::]:7073" --network /wormhole/testnet/2/1 --bootstrap "/dns4/wormhole-testnet-v2-bootstrap.certus.one/udp/8999/quic/p2p/12D3KooWAkB9ynDur1Jtoa97LBUp8RXdhzS5uHgAfdTquJbrbN7i,/dns4/t-guardian-01.nodes.stable.io/udp/8999/quic/p2p/12D3KooWCW3LGUtkCVkHZmVSZHzL3C4WRKWfqAiJPz1NR7dT9Bxh,/dns4/t-guardian-02.nodes.stable.io/udp/8999/quic/p2p/12D3KooWJXA6goBCiWM8ucjzc4jVUBSqL9Rri6UpjHbkMPErz5zK"
 ```
-
-<!-- cspell:enable -->
 
 To run the spy against mainnet:
 
-<!-- cspell:disable -->
-
 ```bash
 docker run \
     --platform=linux/amd64 \
     -p 7073:7073 \
     --entrypoint /guardiand \
     ghcr.io/wormhole-foundation/guardiand:latest \
-    spy --nodeKey /node.key --spyRPC "[::]:7073" --env mainnet
+spy --nodeKey /node.key --spyRPC "[::]:7073" --network /wormhole/mainnet/2 --bootstrap /dns4/wormhole-mainnet-v2-bootstrap.certus.one/udp/8999/quic/p2p/12D3KooWQp644DK27fd3d4Km3jr7gHiuJJ5ZGmy8hH4py7fP4FP7,/dns4/wormhole-v2-mainnet-bootstrap.xlabs.xyz/udp/8999/quic/p2p/12D3KooWNQ9tVrcb64tw6bNs2CaNrUGPM7yRrKvBBheQ5yCyPHKC,/dns4/wormhole.mcf.rocks/udp/8999/quic/p2p/12D3KooWDZVv7BhZ8yFLkarNdaSWaB43D6UbQwExJ8nnGAEmfHcU
 ```
-
-<!-- cspell:enable -->
-
-## Guardian Configurations
-
-Configuration files, environment variables and flags are all supported.
-
-### Config File
-
-**Location/Naming**: By default, the config file is expected to be in the `node/config` directory. The standard name for the config file is `guardiand.yaml`. Currently there's no support for custom directory or filename yet.
-
-**Format**: We support any format that is supported by [Viper](https://pkg.go.dev/github.com/dvln/viper#section-readme). But YAML format is generally preferred.
-
-**Example**:
-
-<!-- cspell:disable -->
-
-```yaml
-ethRPC: "ws://eth-devnet:8545"
-ethContract: "0xC89Ce4735882C9F0f0FE26686c53074E09B0D550"
-solanaRPC: "http://solana-devnet:8899"
-solanaContract: "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o"
-```
-
-<!-- cspell:enable -->
-
-### Environment Variables
-
-**Prefix**: All environment variables related to the Guardian node should be prefixed with `GUARDIAND_`.
-
-**Usage**: Environment variables can be used to override settings in the config file. Particularly for sensitive data like API keys that should not be stored in config files.
-
-**Example**:
-
-```bash
-export GUARDIAND_ETHRPC=ws://eth-devnet:8545
-```
-
-### Command-Line Flags
-
-**Usage**: Flags provide the highest precedence and can be used for temporary overrides or for settings that change frequently.
-
-**Example**:
-
-```bash
-./guardiand node --ethRPC=ws://eth-devnet:8545
-```
-
-### Precedence Order
-
-The configuration settings are applied in the following order of precedence:
-
-1. **Command-Line Flags**: Highest precedence, overrides any other settings.
-2. **Environment Variables**: Overrides the config file settings but can be overridden by flags.
-3. **Config File**: Lowest precedence.

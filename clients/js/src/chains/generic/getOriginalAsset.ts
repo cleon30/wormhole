@@ -60,14 +60,7 @@ export const getOriginalAsset = async (
     case "optimism":
     case "polygon":
     // case "rootstock":
-    case "scroll":
-    case "mantle":
-    case "sepolia":
-    case "arbitrum_sepolia":
-    case "base_sepolia":
-    case "optimism_sepolia":
-    case "polygon_sepolia":
-    case "holesky": {
+    case "sepolia": {
       const provider = getProviderForChain(chainName, network, { rpc });
       return getOriginalAssetEth(
         tokenBridgeAddress,
@@ -120,11 +113,6 @@ export const getOriginalAsset = async (
     case "cosmoshub":
     case "evmos":
     case "kujira":
-    case "neutron":
-    case "celestia":
-    case "stargaze":
-    case "seda":
-    case "dymension":
     case "rootstock":
       throw new Error(`${chainName} not supported`);
     default:

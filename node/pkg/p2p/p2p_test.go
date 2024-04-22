@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/assert"
 
 	node_common "github.com/certusone/wormhole/node/pkg/common"
@@ -22,8 +21,6 @@ func TestSignedHeartbeat(t *testing.T) {
 		timestamp             int64
 		gk                    *ecdsa.PrivateKey
 		heartbeatGuardianAddr string
-		fromP2pId             peer.ID
-		p2pNodeId             []byte
 		expectSuccess         bool
 	}
 
@@ -32,18 +29,10 @@ func TestSignedHeartbeat(t *testing.T) {
 	gk, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
 	assert.NoError(t, err)
 	gAddr := ethcrypto.PubkeyToAddress(gk.PublicKey)
-	fromP2pId, err := peer.Decode("12D3KooWSgMXkhzTbKTeupHYmyG7sFJ5LpVreQcwVnX8RD7LBpy9")
-	assert.NoError(t, err)
-	p2pNodeId, err := fromP2pId.Marshal()
-	assert.NoError(t, err)
 
 	gk2, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
 	assert.NoError(t, err)
 	gAddr2 := ethcrypto.PubkeyToAddress(gk2.PublicKey)
-	fromP2pId2, err := peer.Decode("12D3KooWDZVv7BhZ8yFLkarNdaSWaB43D6UbQwExJ8nnGAEmfHcU")
-	assert.NoError(t, err)
-	p2pNodeId2, err := fromP2pId2.Marshal()
-	assert.NoError(t, err)
 
 	tests := []testCase{
 		// happy case
@@ -51,8 +40,6 @@ func TestSignedHeartbeat(t *testing.T) {
 			timestamp:             time.Now().UnixNano(),
 			gk:                    gk,
 			heartbeatGuardianAddr: gAddr.String(),
-			fromP2pId:             fromP2pId,
-			p2pNodeId:             p2pNodeId,
 			expectSuccess:         true,
 		},
 		// guardian signed a heartbeat for another guardian
@@ -60,35 +47,20 @@ func TestSignedHeartbeat(t *testing.T) {
 			timestamp:             time.Now().UnixNano(),
 			gk:                    gk,
 			heartbeatGuardianAddr: gAddr2.String(),
-			fromP2pId:             fromP2pId,
-			p2pNodeId:             p2pNodeId,
 			expectSuccess:         false,
 		},
 		// old heartbeat
 		{
 			timestamp:             time.Now().Add(-time.Hour).UnixNano(),
 			gk:                    gk,
-			heartbeatGuardianAddr: gAddr.String(),
-			fromP2pId:             fromP2pId,
-			p2pNodeId:             p2pNodeId,
+			heartbeatGuardianAddr: gAddr2.String(),
 			expectSuccess:         false,
 		},
 		// heartbeat from the distant future
 		{
 			timestamp:             time.Now().Add(time.Hour).UnixNano(),
 			gk:                    gk,
-			heartbeatGuardianAddr: gAddr.String(),
-			fromP2pId:             fromP2pId,
-			p2pNodeId:             p2pNodeId,
-			expectSuccess:         false,
-		},
-		// mismatched peer id
-		{
-			timestamp:             time.Now().UnixNano(),
-			gk:                    gk,
-			heartbeatGuardianAddr: gAddr.String(),
-			fromP2pId:             fromP2pId,
-			p2pNodeId:             p2pNodeId2,
+			heartbeatGuardianAddr: gAddr2.String(),
 			expectSuccess:         false,
 		},
 	}
@@ -107,7 +79,6 @@ func TestSignedHeartbeat(t *testing.T) {
 			GuardianAddr:  tc.heartbeatGuardianAddr,
 			BootTimestamp: time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano(),
 			Features:      []string{},
-			P2PNodeId:     tc.p2pNodeId,
 		}
 
 		s := createSignedHeartbeat(gk, heartbeat)
@@ -118,7 +89,7 @@ func TestSignedHeartbeat(t *testing.T) {
 
 		gst := node_common.NewGuardianSetState(nil)
 
-		heartbeatResult, err := processSignedHeartbeat(tc.fromP2pId, s, gs, gst, false)
+		heartbeatResult, err := processSignedHeartbeat("someone", s, gs, gst, false)
 
 		if tc.expectSuccess {
 			assert.NoError(t, err)

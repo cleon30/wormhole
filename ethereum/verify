@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 function usage() {
 cat <<EOF >&2
 Usage:
@@ -46,16 +48,6 @@ shift $((OPTIND - 1))
 json_file=$1
 contract_addr=$2
 
-# See if they specified the forge output. Do this before we set the error handling flags because
-# this pipeline will intentionally fail if they are using the truffle build output.
-use_forge=""
-echo "$json_file" | grep "build-forge" > /dev/null
-if [[ $? -eq 0 ]]; then
-  use_forge="true"
-fi
-
-set -euo pipefail
-
 # network and rpc flags are mutually exlusive
 [[ -n $network && -n $rpc ]] && usage
 
@@ -79,11 +71,7 @@ fi
 deployed=$(mktemp)
 local=$(mktemp)
 
-if [[ -z $use_forge ]]; then
-  cat "$json_file" | jq -r .deployedBytecode > "$local"
-else
-  cat "$json_file" | jq -r .deployedBytecode | jq -r .object > "$local"  
-fi
+cat "$json_file" | jq -r .deployedBytecode > "$local"
 
 ret=0
 # Grab bytecode from the JSON RPC using the eth_getCode method.

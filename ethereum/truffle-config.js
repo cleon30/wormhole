@@ -85,15 +85,6 @@ module.exports = {
       },
       network_id: "80001",
     },
-    polygon_sepolia_testnet: {
-      provider: () => {
-        return new HDWalletProvider(
-          process.env.MNEMONIC,
-          "https://rpc-amoy.polygon.technology/"
-        );
-      },
-      network_id: "80002",
-    },
     avalanche: {
       provider: () => {
         return new HDWalletProvider(
@@ -320,16 +311,6 @@ module.exports = {
       },
       network_id: 421613,
     },
-    arbitrum_sepolia_testnet: {
-      provider: () => {
-        return new HDWalletProvider(
-          process.env.MNEMONIC,
-          "https://arbitrum-sepolia.publicnode.com"
-          //"https://sepolia-rollup.arbitrum.io/rpc" // This didn't work.
-        );
-      },
-      network_id: 421614,
-    },
     optimism: {
       provider: () => {
         return new HDWalletProvider(
@@ -348,16 +329,6 @@ module.exports = {
         );
       },
       network_id: 420,
-    },
-    optimism_sepolia_testnet: {
-      provider: () => {
-        return new HDWalletProvider(
-          process.env.MNEMONIC,
-          "https://rpc.ankr.com/optimism_sepolia"
-          // "https://sepolia.optimism.io/"  <== This didn't work for testnet
-        );
-      },
-      network_id: 11155420,
     },
     gnosis: {
       provider: () => {
@@ -395,15 +366,6 @@ module.exports = {
       },
       network_id: 84531,
     },
-    base_sepolia_testnet: {
-      provider: () => {
-        return new HDWalletProvider(
-          process.env.MNEMONIC,
-          "https://sepolia.base.org"
-        );
-      },
-      network_id: 84532,
-    },
     scroll_testnet: {
       provider: () => {
         return new HDWalletProvider(
@@ -412,27 +374,6 @@ module.exports = {
         );
       },
       network_id: 534351,
-    },
-    mantle_testnet: {
-      provider: () => {
-        return new HDWalletProvider(
-          process.env.MNEMONIC,
-          "https://rpc.sepolia.mantle.xyz"
-        );
-      },
-      network_id: 5003,
-      gasPrice: 2520000000,
-    },
-    blast_testnet: {
-      provider: () => {
-        return new HDWalletProvider(
-          process.env.MNEMONIC,
-          "https://blast-sepolia.drpc.org"
-          // "https://sepolia.blast.io" // This didn't work.
-        );
-      },
-      network_id: 168587773,
-      gasPrice: 2500000000,
     },
     rootstock: {
       provider: () => {
@@ -460,15 +401,6 @@ module.exports = {
         );
       },
       network_id: "11155111",
-    },
-    holesky_testnet: {
-      provider: () => {
-        return new HDWalletProvider(
-          process.env.MNEMONIC,
-          "https://rpc.ankr.com/eth_holesky"
-        );
-      },
-      network_id: "17000",
     },
   },
 

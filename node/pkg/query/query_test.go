@@ -36,7 +36,6 @@ const (
 	// Speed things up for testing purposes.
 	requestTimeoutForTest = 100 * time.Millisecond
 	retryIntervalForTest  = 10 * time.Millisecond
-	auditIntervalForTest  = 10 * time.Millisecond
 	pollIntervalForTest   = 5 * time.Millisecond
 )
 
@@ -437,7 +436,7 @@ func createQueryHandlerForTestWithoutPublisher(t *testing.T, ctx context.Context
 
 	go func() {
 		err := handleQueryRequestsImpl(ctx, logger, md.signedQueryReqReadC, md.chainQueryReqC, ccqAllowedRequestersList,
-			md.queryResponseReadC, md.queryResponsePublicationWriteC, common.GoTest, requestTimeoutForTest, retryIntervalForTest, auditIntervalForTest)
+			md.queryResponseReadC, md.queryResponsePublicationWriteC, common.GoTest, requestTimeoutForTest, retryIntervalForTest)
 		assert.NoError(t, err)
 	}()
 
@@ -809,12 +808,4 @@ func TestPublishRetrySucceeds(t *testing.T) {
 
 	assert.Equal(t, 1, md.getRequestsPerChain(vaa.ChainIDPolygon))
 	assert.True(t, validateResponseForTest(t, queryResponsePublication, signedQueryRequest, queryRequest, expectedResults))
-}
-
-func TestPerChainConfigValid(t *testing.T) {
-	for chainID, config := range perChainConfig {
-		if config.NumWorkers <= 0 {
-			assert.Equal(t, "", fmt.Sprintf(`perChainConfig for "%s" has an invalid NumWorkers: %d`, chainID.String(), config.NumWorkers))
-		}
-	}
 }

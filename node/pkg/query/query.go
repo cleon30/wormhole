@@ -22,23 +22,14 @@ const (
 	// RequestTimeout indicates how long before a request is considered to have timed out.
 	RequestTimeout = 1 * time.Minute
 
-	// RetryInterval specifies how long we will wait between retry intervals.
+	// RetryInterval specifies how long we will wait between retry intervals. This is the interval of our ticker.
 	RetryInterval = 10 * time.Second
 
-	// AuditInterval specifies how often to audit the list of pending queries.
-	AuditInterval = time.Second
-
 	// SignedQueryRequestChannelSize is the buffer size of the incoming query request channel.
-	SignedQueryRequestChannelSize = 500
+	SignedQueryRequestChannelSize = 50
 
 	// QueryRequestBufferSize is the buffer size of the per-network query request channel.
-	QueryRequestBufferSize = 250
-
-	// QueryResponseBufferSize is the buffer size of the single query response channel from the watchers.
-	QueryResponseBufferSize = 500
-
-	// QueryResponsePublicationChannelSize is the buffer size of the single query response channel back to the P2P publisher.
-	QueryResponsePublicationChannelSize = 500
+	QueryRequestBufferSize = 25
 )
 
 func NewQueryHandler(
@@ -62,11 +53,6 @@ func NewQueryHandler(
 }
 
 type (
-	// Watcher is the interface that any watcher that supports cross chain queries must implement.
-	Watcher interface {
-		QueryHandler(ctx context.Context, queryRequest *PerChainQueryInternal)
-	}
-
 	// QueryHandler defines the cross chain query handler.
 	QueryHandler struct {
 		logger               *zap.Logger
@@ -98,59 +84,7 @@ type (
 		channel        chan *PerChainQueryInternal
 		lastUpdateTime time.Time
 	}
-
-	PerChainConfig struct {
-		TimestampCacheSupported bool
-		NumWorkers              int
-	}
 )
-
-// perChainConfig provides static config info for each chain. If a chain is not listed here, then it does not support queries.
-// Every chain listed here must have at least one worker specified.
-var perChainConfig = map[vaa.ChainID]PerChainConfig{
-	vaa.ChainIDSolana:          {NumWorkers: 10, TimestampCacheSupported: false},
-	vaa.ChainIDEthereum:        {NumWorkers: 5, TimestampCacheSupported: true},
-	vaa.ChainIDBSC:             {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDPolygon:         {NumWorkers: 5, TimestampCacheSupported: true},
-	vaa.ChainIDAvalanche:       {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDOasis:           {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDAurora:          {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDFantom:          {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDKarura:          {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDAcala:           {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDKlaytn:          {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDCelo:            {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDMoonbeam:        {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDArbitrum:        {NumWorkers: 5, TimestampCacheSupported: true},
-	vaa.ChainIDOptimism:        {NumWorkers: 5, TimestampCacheSupported: true},
-	vaa.ChainIDBase:            {NumWorkers: 5, TimestampCacheSupported: true},
-	vaa.ChainIDScroll:          {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDMantle:          {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDBlast:           {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDXLayer:          {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDLinea:           {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDBerachain:       {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDSepolia:         {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDHolesky:         {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDArbitrumSepolia: {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDBaseSepolia:     {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDOptimismSepolia: {NumWorkers: 1, TimestampCacheSupported: true},
-	vaa.ChainIDPolygonSepolia:  {NumWorkers: 1, TimestampCacheSupported: true},
-}
-
-// GetPerChainConfig returns the config for the specified chain. If the chain is not configured it returns an empty struct,
-// which is not an error. It just means that queries are not supported for that chain.
-func GetPerChainConfig(chainID vaa.ChainID) PerChainConfig {
-	if pcc, exists := perChainConfig[chainID]; exists {
-		return pcc
-	}
-	return PerChainConfig{}
-}
-
-// QueriesSupported can be used by the watcher to determine if queries are supported for the chain.
-func (config PerChainConfig) QueriesSupported() bool {
-	return config.NumWorkers > 0
-}
 
 // Start initializes the query handler and starts the runnable.
 func (qh *QueryHandler) Start(ctx context.Context) error {
@@ -171,7 +105,7 @@ func (qh *QueryHandler) Start(ctx context.Context) error {
 
 // handleQueryRequests multiplexes observation requests to the appropriate chain
 func (qh *QueryHandler) handleQueryRequests(ctx context.Context) error {
-	return handleQueryRequestsImpl(ctx, qh.logger, qh.signedQueryReqC, qh.chainQueryReqC, qh.allowedRequestors, qh.queryResponseReadC, qh.queryResponseWriteC, qh.env, RequestTimeout, RetryInterval, AuditInterval)
+	return handleQueryRequestsImpl(ctx, qh.logger, qh.signedQueryReqC, qh.chainQueryReqC, qh.allowedRequestors, qh.queryResponseReadC, qh.queryResponseWriteC, qh.env, RequestTimeout, RetryInterval)
 }
 
 // handleQueryRequestsImpl allows instantiating the handler in the test environment with shorter timeout and retry parameters.
@@ -186,29 +120,47 @@ func handleQueryRequestsImpl(
 	env common.Environment,
 	requestTimeoutImpl time.Duration,
 	retryIntervalImpl time.Duration,
-	auditIntervalImpl time.Duration,
 ) error {
 	qLogger := logger.With(zap.String("component", "ccqhandler"))
 	qLogger.Info("cross chain queries are enabled", zap.Any("allowedRequestors", allowedRequestors), zap.String("env", string(env)))
 
 	pendingQueries := make(map[string]*pendingQuery) // Key is requestID.
 
-	// Create the set of chains for which CCQ is actually enabled. Those are the ones in the config for which we actually have a watcher enabled.
-	supportedChains := make(map[vaa.ChainID]struct{})
-	for chainID, config := range perChainConfig {
-		if _, exists := chainQueryReqC[chainID]; exists {
-			if config.NumWorkers <= 0 {
-				panic(fmt.Sprintf(`invalid per chain config entry for "%s", no workers specified`, chainID.String()))
-			}
-			logger.Info("queries supported on chain", zap.Stringer("chainID", chainID), zap.Int("numWorkers", config.NumWorkers))
-			supportedChains[chainID] = struct{}{}
+	// CCQ is currently only supported on EVM.
+	supportedChains := map[vaa.ChainID]struct{}{
+		vaa.ChainIDEthereum:  {},
+		vaa.ChainIDBSC:       {},
+		vaa.ChainIDPolygon:   {},
+		vaa.ChainIDAvalanche: {},
+		vaa.ChainIDOasis:     {},
+		vaa.ChainIDAurora:    {},
+		vaa.ChainIDFantom:    {},
+		vaa.ChainIDKarura:    {},
+		vaa.ChainIDAcala:     {},
+		vaa.ChainIDKlaytn:    {},
+		vaa.ChainIDCelo:      {},
+		vaa.ChainIDMoonbeam:  {},
+		vaa.ChainIDNeon:      {},
+		vaa.ChainIDArbitrum:  {},
+		vaa.ChainIDOptimism:  {},
+		vaa.ChainIDBase:      {},
+		vaa.ChainIDScroll:    {},
+		vaa.ChainIDSepolia:   {},
+	}
+
+	// But we don't want to allow CCQ if the chain is not enabled.
+	for chainID := range supportedChains {
+		if _, exists := chainQueryReqC[chainID]; !exists {
+			delete(supportedChains, chainID)
+		} else {
+			logger.Info("queries supported on chain", zap.Stringer("chainID", chainID))
 
 			// Make sure we have a metric for every enabled chain, so we can see which ones are actually enabled.
 			totalRequestsByChain.WithLabelValues(chainID.String()).Add(0)
 		}
 	}
 
-	ticker := time.NewTicker(auditIntervalImpl)
+	ticker := time.NewTicker(retryIntervalImpl)
 	defer ticker.Stop()
 
 	for {
@@ -244,7 +196,7 @@ func handleQueryRequestsImpl(
 			signerAddress := ethCommon.BytesToAddress(ethCrypto.Keccak256(signerBytes[1:])[12:])
 
 			if _, exists := allowedRequestors[signerAddress]; !exists {
-				qLogger.Debug("invalid requestor", zap.String("requestor", signerAddress.Hex()), zap.String("requestID", requestID))
+				qLogger.Error("invalid requestor", zap.String("requestor", signerAddress.Hex()), zap.String("requestID", requestID))
 				invalidQueryRequestReceived.WithLabelValues("invalid_requestor").Inc()
 				continue
 			}
@@ -279,7 +231,7 @@ func handleQueryRequestsImpl(
 			for requestIdx, pcq := range queryRequest.PerChainQueries {
 				chainID := vaa.ChainID(pcq.ChainId)
 				if _, exists := supportedChains[chainID]; !exists {
-					qLogger.Debug("chain does not support cross chain queries", zap.String("requestID", requestID), zap.Stringer("chainID", chainID))
+					qLogger.Error("chain does not support cross chain queries", zap.String("requestID", requestID), zap.Stringer("chainID", chainID))
 					invalidQueryRequestReceived.WithLabelValues("chain_does_not_support_ccq").Inc()
 					errorFound = true
 					break
@@ -287,7 +239,7 @@ func handleQueryRequestsImpl(
 
 				channel, channelExists := chainQueryReqC[chainID]
 				if !channelExists {
-					qLogger.Debug("unknown chain ID for query request, dropping it", zap.String("requestID", requestID), zap.Stringer("chain_id", chainID))
+					qLogger.Error("unknown chain ID for query request, dropping it", zap.String("requestID", requestID), zap.Stringer("chain_id", chainID))
 					invalidQueryRequestReceived.WithLabelValues("failed_to_look_up_channel").Inc()
 					errorFound = true
 					break
@@ -407,7 +359,7 @@ func handleQueryRequestsImpl(
 				timeout := pq.receiveTime.Add(requestTimeoutImpl)
 				qLogger.Debug("audit", zap.String("requestId", reqId), zap.Stringer("receiveTime", pq.receiveTime), zap.Stringer("timeout", timeout))
 				if timeout.Before(now) {
-					qLogger.Debug("query request timed out, dropping it", zap.String("requestId", reqId), zap.Stringer("receiveTime", pq.receiveTime))
+					qLogger.Error("query request timed out, dropping it", zap.String("requestId", reqId), zap.Stringer("receiveTime", pq.receiveTime))
 					queryRequestsTimedOut.Inc()
 					delete(pendingQueries, reqId)
 				} else {
@@ -431,7 +383,7 @@ func handleQueryRequestsImpl(
 									zap.Stringer("lastUpdateTime", pcq.lastUpdateTime),
 									zap.String("chainID", pq.queries[requestIdx].req.Request.ChainId.String()),
 								)
-								pcq.ccqForwardToWatcher(qLogger, now)
+								pcq.ccqForwardToWatcher(qLogger, pq.receiveTime)
 							}
 						}
 					}
@@ -450,7 +402,7 @@ func parseAllowedRequesters(ccqAllowedRequesters string) (map[ethCommon.Address]
 	var nullAddr ethCommon.Address
 	result := make(map[ethCommon.Address]struct{})
 	for _, str := range strings.Split(ccqAllowedRequesters, ",") {
-		addr := ethCommon.BytesToAddress(ethCommon.Hex2Bytes(strings.TrimPrefix(str, "0x")))
+		addr := ethCommon.BytesToAddress(ethCommon.Hex2Bytes(str))
 		if addr == nullAddr {
 			return nil, fmt.Errorf("invalid value in `--ccqAllowedRequesters`: `%s`", str)
 		}
@@ -472,10 +424,11 @@ func (pcq *perChainQuery) ccqForwardToWatcher(qLogger *zap.Logger, receiveTime t
 	case pcq.channel <- pcq.req:
 		qLogger.Debug("forwarded query request to watcher", zap.String("requestID", pcq.req.RequestID), zap.Stringer("chainID", pcq.req.Request.ChainId))
 		totalRequestsByChain.WithLabelValues(pcq.req.Request.ChainId.String()).Inc()
+		pcq.lastUpdateTime = receiveTime
 	default:
+		// By leaving lastUpdateTime unset, we will retry next interval.
 		qLogger.Warn("failed to send query request to watcher, will retry next interval", zap.String("requestID", pcq.req.RequestID), zap.Stringer("chain_id", pcq.req.Request.ChainId))
 	}
-	pcq.lastUpdateTime = receiveTime
 }
 
 // numPendingRequests returns the number of per chain queries in a request that are still awaiting responses. Zero means the request can now be published.
@@ -490,30 +443,13 @@ func (pq *pendingQuery) numPendingRequests() int {
 	return numPending
 }
 
-// StartWorkers is used by the watchers to start the query handler worker routines.
-func StartWorkers(
-	ctx context.Context,
-	logger *zap.Logger,
-	errC chan error,
-	w Watcher,
-	queryReqC <-chan *PerChainQueryInternal,
-	config PerChainConfig,
-	tag string,
-) {
-	for count := 0; count < config.NumWorkers; count++ {
-		workerId := count
-		common.RunWithScissors(ctx, errC, fmt.Sprintf("%s_fetch_query_req", tag), func(ctx context.Context) error {
-			logger.Debug("CONCURRENT: starting worker", zap.Int("worker", workerId))
-			for {
-				select {
-				case <-ctx.Done():
-					return nil
-				case queryRequest := <-queryReqC:
-					logger.Debug("CONCURRENT: processing query request", zap.Int("worker", workerId))
-					w.QueryHandler(ctx, queryRequest)
-					logger.Debug("CONCURRENT: finished processing query request", zap.Int("worker", workerId))
-				}
-			}
-		})
-	}
+func SupportsTimestampCaching(chainID vaa.ChainID) bool {
+	/*
+		- P1: Ethereum, Base, Optimism
+		- P1.5: Arbitrum, Polygon, Avalanche
+		- P2: BNB Chain, Moonbeam
+		- P3: Acala, Celo, Fantom, Karura, Klaytn, Oasis
+	*/
+
+	return chainID == vaa.ChainIDEthereum || chainID == vaa.ChainIDBase || chainID == vaa.ChainIDOptimism
 }

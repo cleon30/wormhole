@@ -6,6 +6,7 @@ import axios from "axios";
 import { ChainId, getSignedVAAWithRetry } from "../../..";
 import {
   TERRA_CHAIN_ID,
+  TERRA_GAS_PRICES_URL,
   TERRA_NODE_URL,
   TERRA_PRIVATE_KEY,
   WORMHOLE_RPC_HOSTS,
@@ -92,6 +93,10 @@ export async function queryBalanceOnTerra(asset: string): Promise<number> {
   }
 
   return balance;
+}
+
+export async function getTerraGasPrices() {
+  return axios.get(TERRA_GAS_PRICES_URL).then((result) => result.data);
 }
 
 // https://github.com/microsoft/TypeScript/issues/34523

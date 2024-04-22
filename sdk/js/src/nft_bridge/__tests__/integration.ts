@@ -1,4 +1,11 @@
-import { beforeEach, describe, expect, jest, test } from "@jest/globals";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  jest,
+  test,
+} from "@jest/globals";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import {
   Connection,
@@ -9,10 +16,10 @@ import {
 import { BigNumberish, ethers } from "ethers";
 import Web3 from "web3";
 import {
+  ChainId,
   CHAIN_ID_ETH,
   CHAIN_ID_SOLANA,
   CONTRACTS,
-  ChainId,
   nft_bridge,
 } from "../..";
 import { postVaaSolanaWithRetry } from "../../solana";
@@ -27,9 +34,11 @@ import {
 } from "./utils/consts";
 import { getSignedVaaEthereum, getSignedVaaSolana } from "./utils/getSignedVaa";
 
+jest.setTimeout(60000);
+
 // ethereum setup
 const web3 = new Web3(ETH_NODE_URL);
-let provider: ethers.providers.JsonRpcProvider;
+let provider: ethers.providers.WebSocketProvider;
 let signer: ethers.Wallet;
 
 // solana setup
@@ -38,8 +47,12 @@ const keypair = Keypair.fromSecretKey(SOLANA_PRIVATE_KEY);
 const payerAddress = keypair.publicKey.toString();
 
 beforeEach(() => {
-  provider = new ethers.providers.JsonRpcProvider(ETH_NODE_URL);
+  provider = new ethers.providers.WebSocketProvider(ETH_NODE_URL);
   signer = new ethers.Wallet(ETH_PRIVATE_KEY, provider); // corresponds to accounts[1]
+});
+
+afterEach(() => {
+  provider.destroy();
 });
 
 describe("Integration Tests", () => {
@@ -80,7 +93,6 @@ describe("Integration Tests", () => {
           fromAddress.toString(),
           CHAIN_ID_SOLANA
         );
-        await provider.send("anvil_mine", ["0x40"]); // 64 blocks should get the above block to `finalized`
         signedVAA = await getSignedVaaEthereum(transaction3);
 
         const { name, symbol } = parseNftTransferVaa(signedVAA);

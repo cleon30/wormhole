@@ -6,17 +6,14 @@ FROM node:19.6.1-slim@sha256:a1ba21bf0c92931d02a8416f0a54daad66cb36a85d2b73af9d7
 # RUN apk add git python make build-base
 # RUN apk update && apk add bash
 RUN apt-get update && apt-get -y install \
-  git python make curl netcat vim
+  git python make curl netcat
 
 RUN npm i typescript -g
 RUN curl -L https://foundry.paradigm.xyz | bash 
 RUN $HOME/.foundry/bin/foundryup
 RUN ls $HOME/.foundry/bin
 
-RUN apt-get -y install jq
-
 # Run as user, otherwise, npx explodes.
-RUN mv /root/.foundry/bin/anvil /bin/anvil
 RUN mv /root/.foundry/bin/forge /bin/forge
 USER 1000
 
@@ -29,11 +26,22 @@ WORKDIR /home/node/app
 # Fix git ssh error
 RUN git config --global url."https://".insteadOf ssh://
 
-WORKDIR /home/node/app/ethereum
+# Support additional root CAs
+COPY README.md cert.pem* /certs/
+# Node
+ENV NODE_EXTRA_CA_CERTS=/certs/cert.pem
+ENV NODE_OPTIONS=--use-openssl-ca
+# npm
+RUN if [ -e /certs/cert.pem ]; then npm config set cafile /certs/cert.pem; fi
+# git
+RUN if [ -e /certs/cert.pem ]; then git config --global http.sslCAInfo /certs/cert.pem; fi
+
+
+WORKDIR /home/node/app
 
 # Only invalidate the npm install step if package.json changed
-COPY --chown=node:node ethereum/package.json .
-COPY --chown=node:node ethereum/package-lock.json .
+COPY --chown=node:node package.json .
+COPY --chown=node:node package-lock.json .
 COPY --from=const-export --chown=node:node .env.0x .env
 
 
@@ -52,29 +60,7 @@ RUN rm -rf node_modules && mv node_modules_cache node_modules
 ARG dev
 ENV DEV=$dev
 
-COPY --chown=node:node ethereum .
-RUN make build
-
-### RELAYER ###
-
-WORKDIR /home/node/app/relayer/ethereum
-
-COPY --chown=node:node relayer/ethereum/package.json .
-COPY --chown=node:node relayer/ethereum/package-lock.json .
-COPY --from=const-export --chown=node:node .env.0x .env
-
-
-RUN --mount=type=cache,uid=1000,gid=1000,target=/home/node/.npm \
-  --mount=type=cache,uid=1000,gid=1000,target=node_modules \
-  npm ci && \                                                 
-  cp -R node_modules node_modules_cache
-  
-RUN rm -rf node_modules && mv node_modules_cache node_modules
-
-ARG dev
-ENV DEV=$dev
-
-COPY --chown=node:node relayer/ethereum .
+COPY --chown=node:node . .
 RUN make build
 
 ARG num_guardians

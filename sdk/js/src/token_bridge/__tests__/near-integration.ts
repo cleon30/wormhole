@@ -1,13 +1,6 @@
-import { beforeAll, expect, jest, test } from "@jest/globals";
+import { beforeAll, afterAll, expect, jest, test } from "@jest/globals";
 import { ethers } from "ethers";
 import { parseUnits } from "ethers/lib/utils";
-import { Account, KeyPair, Near, connect, keyStores } from "near-api-js";
-import {
-  FinalExecutionOutcome,
-  Provider,
-  getTransactionLastResult,
-} from "near-api-js/lib/providers";
-import { parseNearAmount } from "near-api-js/lib/utils/format";
 import {
   createWrappedOnEth,
   createWrappedOnNear,
@@ -35,6 +28,15 @@ import {
   TEST_ERC20,
 } from "./utils/consts";
 import { getSignedVAABySequence } from "./utils/helpers";
+import { Account, connect, KeyPair, keyStores, Near } from "near-api-js";
+import {
+  FinalExecutionOutcome,
+  getTransactionLastResult,
+  Provider,
+} from "near-api-js/lib/providers";
+import { parseNearAmount } from "near-api-js/lib/utils/format";
+
+jest.setTimeout(60000);
 
 let near: Near;
 let nearProvider: Provider;
@@ -44,7 +46,7 @@ const accountId = "devnet.test.near";
 const PRIVATE_KEY =
   "ed25519:nCW2EsTn91b7ettRqQX6ti8ZBNwo7tbMsenBu9nmSVG9aDhNB7hgw7S9w5M9CZu1bF23FbvhKZPfDmh2Gbs45Fs";
 
-const ethProvider = new ethers.providers.JsonRpcProvider(ETH_NODE_URL);
+const ethProvider = new ethers.providers.WebSocketProvider(ETH_NODE_URL);
 const signer = new ethers.Wallet(ETH_PRIVATE_KEY5, ethProvider);
 const ethEmitterAddress = getEmitterAddressEth(
   CONTRACTS.DEVNET.ethereum.token_bridge
@@ -68,6 +70,10 @@ beforeAll(async () => {
   nearProvider = near.connection.provider;
   account = await near.account(accountId);
   ethWalletAddress = await signer.getAddress();
+});
+
+afterAll(async () => {
+  ethProvider.destroy();
 });
 
 const nearParseLogAndGetSignedVaa = async (outcome: FinalExecutionOutcome) => {
@@ -149,7 +155,6 @@ test("Attest and transfer token from Ethereum to Near", async () => {
     signer,
     TEST_ERC20
   );
-  await ethProvider.send("anvil_mine", ["0x40"]); // 64 blocks should get the above block to `finalized`
   const attestSignedVaa = await ethParseLogAndGetSignedVaa(attestReceipt);
   const createWrappedMsgs = await createWrappedOnNear(
     nearProvider,
@@ -188,7 +193,6 @@ test("Attest and transfer token from Ethereum to Near", async () => {
     "near",
     hexToUint8Array(accountHash)
   );
-  await ethProvider.send("anvil_mine", ["0x40"]); // 64 blocks should get the above block to `finalized`
   const transferSignedVaa = await ethParseLogAndGetSignedVaa(transferReceipt);
   const redeemMsgs = await redeemOnNear(
     nearProvider,

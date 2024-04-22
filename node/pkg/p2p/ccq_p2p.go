@@ -88,19 +88,9 @@ func (ccq *ccqP2p) run(
 	}
 	components.Port = port
 
-	// Pass the gossip advertize address through to NewHost() if it was defined
-	components.GossipAdvertiseAddress = ccq.p2pComponents.GossipAdvertiseAddress
-
 	ccq.h, err = NewHost(ccq.logger, ctx, networkID, bootstrapPeers, components, priv)
 	if err != nil {
 		return fmt.Errorf("failed to create p2p: %w", err)
-	}
-
-	// Build a map of bootstrap peers so we can always allow subscribe requests from them.
-	bootstrapPeersMap := map[string]struct{}{}
-	bootstrappers, _ := BootstrapAddrs(ccq.logger, bootstrapPeers, ccq.h.ID())
-	for _, peer := range bootstrappers {
-		bootstrapPeersMap[peer.ID.String()] = struct{}{}
 	}
 
 	topic_req := fmt.Sprintf("%s/%s", networkID, "ccq_req")
@@ -123,10 +113,7 @@ func (ccq *ccqP2p) run(
 					return true
 				}
 			}
-			if _, found := bootstrapPeersMap[peerID.String()]; found {
-				return true
-			}
-			ccq.logger.Debug("Dropping subscribe attempt from unknown peer", zap.String("peerID", peerID.String()))
+			ccq.logger.Info("Dropping subscribe attempt from unknown peer", zap.String("peerID", peerID.String()))
 			return false
 		}))
 	if err != nil {
@@ -153,7 +140,7 @@ func (ccq *ccqP2p) run(
 		if _, found := ccq.allowedPeers[msg.GetFrom().String()]; found {
 			return true
 		}
-		ccq.logger.Debug("Dropping message from unknown peer", zap.String("fromPeerID", from.String()), zap.String("msgPeerID", msg.ReceivedFrom.String()), zap.String("msgFrom", msg.GetFrom().String()))
+		ccq.logger.Info("Dropping message from unknown peer", zap.String("fromPeerID", from.String()), zap.String("msgPeerID", msg.ReceivedFrom.String()), zap.String("msgFrom", msg.GetFrom().String()))
 		return false
 	})
 	if err != nil {
@@ -264,14 +251,14 @@ func (ccq *ccqP2p) publisher(ctx context.Context, gk *ecdsa.PrivateKey, queryRes
 			ccqP2pMessagesSent.Inc()
 			if err != nil {
 				ccq.logger.Error("failed to publish query response",
-					zap.String("requestSignature", msg.Signature()),
+					zap.String("requestID", msg.RequestID()),
 					zap.Any("query_response", msg),
 					zap.Any("signature", sig),
 					zap.Error(err),
 				)
 			} else {
 				ccq.logger.Info("published signed query response", //TODO: Change to Debug
-					zap.String("requestSignature", msg.Signature()),
+					zap.String("requestID", msg.RequestID()),
 					zap.Any("query_response", msg),
 					zap.Any("signature", sig),
 				)

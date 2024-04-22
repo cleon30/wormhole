@@ -60,13 +60,6 @@ spec:
                 path: gwrelayerKey0
               - key: gwrelayerKey1
                 path: gwrelayerKey1
-              - key: accountantNttKey0
-                path: accountantNttKey0
-              - key: accountantNttKey1
-                path: accountantNttKey1
-        - name: node-config
-          configMap:
-            name: node-config
       containers:
         - name: guardiand
           image: guardiand-image
@@ -75,13 +68,11 @@ spec:
               name: node-rundir
             - mountPath: /tmp/mounted-keys/wormchain
               name: node-wormchain-key
-            - mountPath: /app/node/config
-              name: node-config
           command:
             - /guardiand
             - node
-            # - --ethRPC
-            # - ws://eth-devnet:8545
+            - --ethRPC
+            - ws://eth-devnet:8545
             # - --bscRPC
             # - ws://eth-devnet2:8545
             - --polygonRPC
@@ -108,31 +99,11 @@ spec:
             - ws://eth-devnet:8545
             - --optimismRPC
             - ws://eth-devnet:8545
+            - --neonRPC
+            - ws://eth-devnet:8545
             - --baseRPC
             - ws://eth-devnet:8545
             - --scrollRPC
-            - ws://eth-devnet:8545
-            - --mantleRPC
-            - ws://eth-devnet:8545
-            - --blastRPC
-            - ws://eth-devnet:8545
-            - --xlayerRPC
-            - ws://eth-devnet:8545
-            - --lineaRPC
-            - ws://eth-devnet:8545
-            - --berachainRPC
-            - ws://eth-devnet:8545
-            - --sepoliaRPC
-            - ws://eth-devnet:8545
-            - --holeskyRPC
-            - ws://eth-devnet:8545
-            - --arbitrumSepoliaRPC
-            - ws://eth-devnet:8545
-            - --baseSepoliaRPC
-            - ws://eth-devnet:8545
-            - --optimismSepoliaRPC
-            - ws://eth-devnet:8545
-            - --polygonSepoliaRPC
             - ws://eth-devnet:8545
             # - --wormchainURL
             # - wormchain:9090
@@ -150,7 +121,7 @@ spec:
             # - --terraLCD
             # - http://terra-terrad:1317
             # - --terraContract
-            # - terra14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9ssrc8au
+            # - terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5
             # - --terra2WS
             # - ws://terra2-terrad:26657/websocket
             # - --terra2LCD
@@ -238,13 +209,3 @@ data:
   accountantKey1: LS0tLS1CRUdJTiBURU5ERVJNSU5UIFBSSVZBVEUgS0VZLS0tLS0Ka2RmOiBiY3J5cHQKc2FsdDogNzc1M0NCQTBBMUQ0NTJCMkE2QzlERDM4ODc3MTg0NEEKdHlwZTogc2VjcDI1NmsxCgpSYnhRVWRnK2ZHcjMzZTAyVWFFQW1YTDFlNFkrTGJUMFdqbnl4RVR3OXBoL2JXOGI0MzdhWmErOWlCc3NBa0UyCnRScUwvb0J1NWFnQXJocHNnWUgxNlhOWjJHMXRwY0R3V0dQZ1VWVT0KPUd6YUwKLS0tLS1FTkQgVEVOREVSTUlOVCBQUklWQVRFIEtFWS0tLS0t
   gwrelayerKey0: LS0tLS1CRUdJTiBURU5ERVJNSU5UIFBSSVZBVEUgS0VZLS0tLS0KdHlwZTogc2VjcDI1NmsxCmtkZjogYmNyeXB0CnNhbHQ6IDc4OUYzRTBCMkVGNDcyNjAyQzNFMUE0OUI2OENFQzlBCgpGWHAvSllPS3E4WmZtOWxHZ3ZFNEM3NXFyUXFNZFp2RHNWRjhObTdMQU1oR2dHbXBnZnpoZjUrZ3IwZ1hjYjVWCmtSTXA2c0p0NkxCVzRPYWF2ckk3ay84Vml2NWhMVU1la1dPMHg5bz0KPUxrb1MKLS0tLS1FTkQgVEVOREVSTUlOVCBQUklWQVRFIEtFWS0tLS0t
   gwrelayerKey1: LS0tLS1CRUdJTiBURU5ERVJNSU5UIFBSSVZBVEUgS0VZLS0tLS0Ka2RmOiBiY3J5cHQKc2FsdDogNDc5RDk3RDE2OTE0QkQ4QjlFNUUwQzkzMDA0RDA4RUEKdHlwZTogc2VjcDI1NmsxCgpvTEJ0aUkwT2pudXo5bHlzeVlZOFhQeEVkTnpwYUJOVWFkL0UySlJld2pFWFZNVVNTWll2QVZKbERiN3hEQjlSCmEvdm45SFNPM2hKOFc1QTBKOVFqUVZXRzVoZXBNZVpQUEI4M1FCUT0KPVJuTGEKLS0tLS1FTkQgVEVOREVSTUlOVCBQUklWQVRFIEtFWS0tLS0t
-  accountantNttKey0: LS0tLS1CRUdJTiBURU5ERVJNSU5UIFBSSVZBVEUgS0VZLS0tLS0Ka2RmOiBiY3J5cHQKc2FsdDogNzI4NTBEREJFNDQ4NzZBN0Q1Q0YxNDlBQjBGQjNBQzEKdHlwZTogc2VjcDI1NmsxCgpYN1BGMUJaZFBZMmlvRHdVRm9KcXdVdVg4YlFmcFNGckk4UklPS2g1ZUg5cCtDUzZYMm5lM2hVWGFPTDB3YXhUCnM3QVduTzErU241L1g1V0NicklqNHdDVUcwUWdNb0IyN2VFQnB2ND0KPWJiSEkKLS0tLS1FTkQgVEVOREVSTUlOVCBQUklWQVRFIEtFWS0tLS0t
-  accountantNttKey1: LS0tLS1CRUdJTiBURU5ERVJNSU5UIFBSSVZBVEUgS0VZLS0tLS0Ka2RmOiBiY3J5cHQKc2FsdDogNEI2NDI1NDY0MDY0RTIzQjJENUUyNkQyNUI1QUIzQTcKdHlwZTogc2VjcDI1NmsxCgp2NDFNNGdqelc2MHVwcUhyb2l3aURYakVJMEE5WjN1R2lZcmdyNVpjUit2c3V5RFdDZWNXZUFqV2NXb2tINmRhCldKQ1cvdjNua1pqa0xhajByeEpxYTNrSThodDBtdjZ4eDB0WHhSUT0KPUpSZS8KLS0tLS1FTkQgVEVOREVSTUlOVCBQUklWQVRFIEtFWS0tLS0t
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: node-config
-data:
-  guardiand.yaml: |
-    ethRPC: "ws://eth-devnet:8545"

@@ -107,8 +107,6 @@ type Components struct {
 	SignedHeartbeatLogLevel zapcore.Level
 	// GossipParams is used to configure the GossipSub instance used by the Guardian.
 	GossipParams pubsub.GossipSubParams
-	// GossipAdvertiseAddress is an override for the external IP advertised via p2p to other peers.
-	GossipAdvertiseAddress string
 }
 
 func (f *Components) ListeningAddresses() []string {
@@ -198,24 +196,9 @@ func ConnectToPeers(ctx context.Context, logger *zap.Logger, h host.Host, peers 
 }
 
 func NewHost(logger *zap.Logger, ctx context.Context, networkID string, bootstrapPeers string, components *Components, priv crypto.PrivKey) (host.Host, error) {
-
-	// if an override of the advertised gossip addresses is requested
-	// check & render address once for use in the AddrsFactory below
-	var gossipAdvertiseAddress multiaddr.Multiaddr
-	if components.GossipAdvertiseAddress != "" {
-		gossipAdvertiseAddress, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/udp/%d", components.GossipAdvertiseAddress, components.Port))
-		if err != nil {
-			// If the multiaddr is specified incorrectly, blow up
-			logger.Fatal("error with the specified gossip address",
-				zap.String("GossipAdvertiseAddress", components.GossipAdvertiseAddress),
-				zap.Error(err),
-			)
-		}
-		logger.Info("Overriding the advertised p2p address",
-			zap.String("GossipAdvertiseAddress", gossipAdvertiseAddress.String()),
-		)
+	if err := evaluateCutOver(logger, networkID); err != nil {
+		return nil, err
 	}
-
 	h, err := libp2p.New(
 		// Use the keypair we generated
 		libp2p.Identity(priv),
@@ -224,17 +207,6 @@ func NewHost(logger *zap.Logger, ctx context.Context, networkID string, bootstra
 		libp2p.ListenAddrStrings(
 			components.ListeningAddresses()...,
 		),
-
-		// Takes the multiaddrs we are listening on and returns the multiaddrs to advertise to the network to
-		// connect to. Allows overriding the announce address for nodes running behind a NAT or in kubernetes
-		// This function gets called by the libp2p background() process regularly to check for address changes
-		// that are then announced to the rest of the network.
-		libp2p.AddrsFactory(func(addrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-			if gossipAdvertiseAddress != nil {
-				return []multiaddr.Multiaddr{gossipAdvertiseAddress}
-			}
-			return addrs
-		}),
 
 		// Enable TLS security as the only security protocol.
 		libp2p.Security(libp2ptls.ID, libp2ptls.New),
@@ -248,8 +220,6 @@ func NewHost(logger *zap.Logger, ctx context.Context, networkID string, bootstra
 
 		// Let this host use the DHT to find other hosts
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-			// Update the bootstrap peers string so we will log the updated value.
-			bootstrapPeers = cutOverBootstrapPeers(bootstrapPeers)
 			logger.Info("Connecting to bootstrap peers", zap.String("bootstrap_peers", bootstrapPeers))
 
 			bootstrappers, _ := BootstrapAddrs(logger, bootstrapPeers, h.ID())
@@ -801,15 +771,6 @@ func processSignedHeartbeat(from peer.ID, s *gossipv1.SignedHeartbeat, gs *commo
 
 	if h.GuardianAddr != signerAddr.String() {
 		return nil, fmt.Errorf("GuardianAddr in heartbeat does not match signerAddr")
-	}
-
-	// Don't accept replayed heartbeats from other peers
-	signedPeer, err := peer.IDFromBytes(h.P2PNodeId)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode peer ID from bytes: %w", err)
-	}
-	if signedPeer != from {
-		return nil, fmt.Errorf("guardian signed peer does not match sending peer")
 	}
 
 	// Store verified heartbeat in global guardian set state.

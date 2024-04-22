@@ -56,7 +56,7 @@ func NewCeloConnector(ctx context.Context, networkName, rawUrl string, address e
 	return &CeloConnector{
 		networkName: networkName,
 		address:     address,
-		logger:      logger,
+		logger:      logger.With(zap.String("eth_network", networkName)),
 		client:      client,
 		rawClient:   rawClient,
 		filterer:    filterer,
@@ -130,12 +130,12 @@ func (c *CeloConnector) TransactionReceipt(ctx context.Context, txHash ethCommon
 }
 
 func (c *CeloConnector) TimeOfBlockByHash(ctx context.Context, hash ethCommon.Hash) (uint64, error) {
-	block, err := c.client.HeaderByHash(ctx, celoCommon.BytesToHash(hash.Bytes()))
+	block, err := c.client.BlockByHash(ctx, celoCommon.BytesToHash(hash.Bytes()))
 	if err != nil {
 		return 0, err
 	}
 
-	return block.Time, err
+	return block.Time(), err
 }
 
 func (c *CeloConnector) ParseLogMessagePublished(ethLog ethTypes.Log) (*ethAbi.AbiLogMessagePublished, error) {
@@ -173,19 +173,16 @@ func (c *CeloConnector) SubscribeForBlocks(ctx context.Context, errC chan error,
 				sink <- &NewBlock{
 					Number:   ev.Number,
 					Hash:     hash,
-					Time:     ev.Time,
 					Finality: Finalized,
 				}
 				sink <- &NewBlock{
 					Number:   ev.Number,
 					Hash:     hash,
-					Time:     ev.Time,
 					Finality: Safe,
 				}
 				sink <- &NewBlock{
 					Number:   ev.Number,
 					Hash:     hash,
-					Time:     ev.Time,
 					Finality: Latest,
 				}
 			}

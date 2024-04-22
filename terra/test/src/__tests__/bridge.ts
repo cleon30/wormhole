@@ -75,28 +75,22 @@ describe("Bridge Tests", () => {
         ).toString("base64");
 
         // wormhole
-        const wormhole = await deploy(
-          client,
-          wallet,
-          WASM_WORMHOLE,
-          {
-            gov_chain: GOVERNANCE_CHAIN,
-            gov_address: governanceAddress,
-            guardian_set_expirity: 86400,
-            initial_guardian_set: {
-              addresses: [
-                {
-                  bytes: Buffer.from(
-                    "beFA429d57cD18b7F8A4d91A2da9AB4AF05d0FBe",
-                    "hex"
-                  ).toString("base64"),
-                },
-              ],
-              expiration_time: 0,
-            },
+        const wormhole = await deploy(client, wallet, WASM_WORMHOLE, {
+          gov_chain: GOVERNANCE_CHAIN,
+          gov_address: governanceAddress,
+          guardian_set_expirity: 86400,
+          initial_guardian_set: {
+            addresses: [
+              {
+                bytes: Buffer.from(
+                  "beFA429d57cD18b7F8A4d91A2da9AB4AF05d0FBe",
+                  "hex"
+                ).toString("base64"),
+              },
+            ],
+            expiration_time: 0,
           },
-          "wormholeTest"
-        );
+        });
 
         // token bridge
         const wrappedAssetCodeId = await storeCode(
@@ -104,18 +98,12 @@ describe("Bridge Tests", () => {
           wallet,
           WASM_WRAPPED_ASSET
         );
-        const tokenBridge = await deploy(
-          client,
-          wallet,
-          WASM_TOKEN_BRIDGE,
-          {
-            gov_chain: GOVERNANCE_CHAIN,
-            gov_address: governanceAddress,
-            wormhole_contract: wormhole,
-            wrapped_asset_code_id: wrappedAssetCodeId,
-          },
-          "tokenBridgeTest"
-        );
+        const tokenBridge = await deploy(client, wallet, WASM_TOKEN_BRIDGE, {
+          gov_chain: GOVERNANCE_CHAIN,
+          gov_address: governanceAddress,
+          wormhole_contract: wormhole,
+          wrapped_asset_code_id: wrappedAssetCodeId,
+        });
 
         // mock bridge integration
         const mockBridgeIntegration = await deploy(
@@ -124,8 +112,7 @@ describe("Bridge Tests", () => {
           WASM_MOCK_BRIDGE_INTEGRATION,
           {
             token_bridge_contract: tokenBridge,
-          },
-          "mockBrigeIntegration"
+          }
         );
         contracts.set("wormhole", wormhole);
         contracts.set("tokenBridge", tokenBridge);
@@ -339,7 +326,7 @@ describe("Bridge Tests", () => {
           denom
         );
         const gasPaid = computeGasPaid(receipt);
-        const walletExpectedChange = new Int("882906");
+        const walletExpectedChange = new Int(relayerFee).sub(gasPaid);
 
         // due to rounding, we should expect the balances to reconcile
         // within 1 unit (equivalent to 1e-6 uusd). Best-case scenario
@@ -347,7 +334,6 @@ describe("Bridge Tests", () => {
         const reconciled = walletBalanceAfter
           .minus(walletExpectedChange)
           .minus(walletBalanceBefore);
-        console.info("reconciled", reconciled.toString());
         expect(
           reconciled.greaterThanOrEqualTo("0") &&
             reconciled.lessThanOrEqualTo("1")
@@ -358,26 +344,20 @@ describe("Bridge Tests", () => {
           recipient,
           denom
         );
-        // the expected change is slightly less than the amount - the relayer fee, due to tax
-        const recipientExpectedChange = new Int("98901098");
+        const recipientExpectedChange = new Int(amount).sub(relayerFee);
         expect(
           recipientBalanceBefore
             .add(recipientExpectedChange)
             .eq(recipientBalanceAfter)
         ).toBeTruthy();
 
-        // check bridge balance change
-        // the expected change is slightly less than the amount, due to
-        // a small rounding error in the tax calculation
-        const bridgeExpectedChange = new Int("99999998");
+        // cehck bridge balance change
+        const bridgeExpectedChange = new Int(amount);
         const bridgeBalanceAfter = await getNativeBalance(
           client,
           tokenBridge,
           denom
         );
-        console.info("bridgeBalanceAfter", bridgeBalanceAfter.toString());
-        console.info("bridgeExpectedChange", bridgeExpectedChange.toString());
-        console.info("bridgeBalanceBefore", bridgeBalanceBefore.toString());
         expect(
           bridgeBalanceBefore.sub(bridgeExpectedChange).eq(bridgeBalanceAfter)
         ).toBeTruthy();
@@ -549,17 +529,15 @@ describe("Bridge Tests", () => {
           mockBridgeIntegration,
           denom
         );
-        // tax applied, so we expect less than the original amount
-        const contractBlanceAfterExpected = new Int("99900099");
+        const contractExpectedChange = new Int(amount);
         expect(
-          contractBalanceAfter
-            .eq(contractBlanceAfterExpected)
+          contractBalanceBefore
+            .add(contractExpectedChange)
+            .eq(contractBalanceAfter)
         ).toBeTruthy();
 
-        // check bridge balance change
-        // the expected change is slightly less than the amount, due to
-        // a small rounding error in the tax calculation
-        const bridgeExpectedChange = new Int("99999999");
+        // cehck bridge balance change
+        const bridgeExpectedChange = new Int(amount);
         const bridgeBalanceAfter = await getNativeBalance(
           client,
           tokenBridge,

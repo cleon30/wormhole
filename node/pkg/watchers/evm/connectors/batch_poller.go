@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/certusone/wormhole/node/pkg/common"
+	"github.com/certusone/wormhole/node/pkg/supervisor"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	ethEvent "github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	ethereum "github.com/ethereum/go-ethereum"
@@ -20,6 +22,8 @@ type BatchPollConnector struct {
 	Connector
 	logger       *zap.Logger
 	Delay        time.Duration
+	blockFeed    ethEvent.Feed
+	errFeed      ethEvent.Feed
 	batchData    []BatchEntry
 	generateSafe bool
 }
@@ -38,11 +42,10 @@ type (
 	}
 )
 
-// MAX_GAP_BATCH_SIZE specifies the maximum number of blocks to be requested at once when gap filling.
 const MAX_GAP_BATCH_SIZE uint64 = 5
 
-func NewBatchPollConnector(ctx context.Context, logger *zap.Logger, baseConnector Connector, safeSupported bool, delay time.Duration) *BatchPollConnector {
-	// Create the batch data in the order we want to report them to the watcher. We always do finalized, but only do safe if requested.
+func NewBatchPollConnector(ctx context.Context, logger *zap.Logger, baseConnector Connector, safeSupported bool, delay time.Duration) (*BatchPollConnector, error) {
+	// Create the batch data in the order we want to report them to the watcher, so finalized is most important, latest is least.
 	batchData := []BatchEntry{
 		{tag: "finalized", finality: Finalized},
 	}
@@ -58,50 +61,47 @@ func NewBatchPollConnector(ctx context.Context, logger *zap.Logger, baseConnecto
 		batchData:    batchData,
 		generateSafe: !safeSupported,
 	}
-
-	return connector
+	err := supervisor.Run(ctx, "batchPoller", common.WrapWithScissors(connector.runFromSupervisor, "batchPoller"))
+	if err != nil {
+		return nil, err
+	}
+	return connector, nil
 }
 
 func (b *BatchPollConnector) SubscribeForBlocks(ctx context.Context, errC chan error, sink chan<- *NewBlock) (ethereum.Subscription, error) {
+	sub := NewPollSubscription()
+	blockSub := b.blockFeed.Subscribe(sink)
+
+	// The feed library does not support error forwarding, so we're emulating that using a custom subscription and
+	// an error feed. The feed library can't handle interfaces which is why we post strings.
+	innerErrSink := make(chan string, 10)
+	innerErrSub := b.errFeed.Subscribe(innerErrSink)
+
 	// Use the standard geth head sink to get latest blocks. We do this so that we will be notified of rollbacks. The following document
 	// indicates that the subscription will receive a replay of all blocks affected by a rollback. This is important for latest because the
 	// timestamp cache needs to be updated on a rollback. We can only consider polling for latest if we can guarantee that we won't miss rollbacks.
 	// https://ethereum.org/en/developers/tutorials/using-websockets/#subscription-types
 	headSink := make(chan *ethTypes.Header, 2)
-	headerSubscription, err := b.Connector.SubscribeNewHead(ctx, headSink)
+	_, err := b.Connector.SubscribeNewHead(ctx, headSink)
 	if err != nil {
-		return headerSubscription, fmt.Errorf("failed to subscribe for latest blocks: %w", err)
+		return nil, fmt.Errorf("failed to subscribe for latest blocks: %w", err)
 	}
 
-	// Get the initial blocks.
-	lastBlocks, err := b.getBlocks(ctx, b.logger)
-	if err != nil {
-		b.logger.Error("failed to get initial blocks", zap.Error(err))
-		return headerSubscription, fmt.Errorf("failed to get initial blocks: %w", err)
-	}
-
-	errCount := 0
-
+	// Use the poller for finalized and safe.
 	common.RunWithScissors(ctx, errC, "block_poll_subscribe_for_blocks", func(ctx context.Context) error {
-		timer := time.NewTimer(b.Delay)
-		defer timer.Stop()
 		for {
 			select {
 			case <-ctx.Done():
+				blockSub.Unsubscribe()
+				innerErrSub.Unsubscribe()
 				return nil
-			case <-timer.C:
-				lastBlocks, err = b.pollBlocks(ctx, sink, lastBlocks)
-				if err != nil {
-					errCount++
-					b.logger.Error("batch polling encountered an error", zap.Int("errCount", errCount), zap.Error(err))
-					if errCount > 3 {
-						errC <- fmt.Errorf("polling encountered too many errors: %w", err)
-						return nil
-					}
-				} else if errCount != 0 {
-					errCount = 0
-				}
-				timer.Reset(b.Delay)
+			case <-sub.quit:
+				blockSub.Unsubscribe()
+				innerErrSub.Unsubscribe()
+				sub.unsubDone <- struct{}{}
+				return nil
+			case v := <-innerErrSink:
+				sub.err <- fmt.Errorf(v)
 			case ev := <-headSink:
 				if ev == nil {
 					b.logger.Error("new latest header event is nil")
@@ -111,23 +111,61 @@ func (b *BatchPollConnector) SubscribeForBlocks(ctx context.Context, errC chan e
 					b.logger.Error("new latest header block number is nil")
 					continue
 				}
-				sink <- &NewBlock{
+				b.blockFeed.Send(&NewBlock{
 					Number:   ev.Number,
 					Time:     ev.Time,
 					Hash:     ev.Hash(),
 					Finality: Latest,
-				}
+				})
 			}
 		}
 	})
+	return sub, nil
+}
 
-	return headerSubscription, nil
+func (b *BatchPollConnector) runFromSupervisor(ctx context.Context) error {
+	logger := supervisor.Logger(ctx).With(zap.String("eth_network", b.Connector.NetworkName()))
+	supervisor.Signal(ctx, supervisor.SignalHealthy)
+	return b.run(ctx, logger)
+}
+
+func (b *BatchPollConnector) run(ctx context.Context, logger *zap.Logger) error {
+	// Get the initial blocks.
+	lastBlocks, err := b.getBlocks(ctx, logger)
+	if err != nil {
+		return err
+	}
+
+	timer := time.NewTimer(b.Delay)
+	defer timer.Stop()
+
+	errCount := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			lastBlocks, err = b.pollBlocks(ctx, logger, lastBlocks)
+			if err != nil {
+				errCount++
+				logger.Error("batch polling encountered an error", zap.Int("errCount", errCount), zap.Error(err))
+				if errCount > 3 {
+					b.errFeed.Send(fmt.Sprint("polling encountered an error: ", err))
+					errCount = 0
+				}
+			} else {
+				errCount = 0
+			}
+
+			timer.Reset(b.Delay)
+		}
+	}
 }
 
 // pollBlocks polls for the latest blocks (finalized, safe and latest), compares them to the last ones, and publishes any new ones.
 // In the case of an error, it returns the last blocks that were passed in, otherwise it returns the new blocks.
-func (b *BatchPollConnector) pollBlocks(ctx context.Context, sink chan<- *NewBlock, prevBlocks Blocks) (Blocks, error) {
-	newBlocks, err := b.getBlocks(ctx, b.logger)
+func (b *BatchPollConnector) pollBlocks(ctx context.Context, logger *zap.Logger, prevBlocks Blocks) (Blocks, error) {
+	newBlocks, err := b.getBlocks(ctx, logger)
 	if err != nil {
 		return prevBlocks, err
 	}
@@ -148,10 +186,10 @@ func (b *BatchPollConnector) pollBlocks(ctx context.Context, sink chan<- *NewBlo
 				if batchSize > MAX_GAP_BATCH_SIZE {
 					batchSize = MAX_GAP_BATCH_SIZE
 				}
-				gapBlocks, err := b.getBlockRange(ctx, b.logger, blockNum, batchSize, b.batchData[idx].finality)
+				gapBlocks, err := b.getBlockRange(ctx, logger, blockNum, batchSize, b.batchData[idx].finality)
 				if err != nil {
 					// We don't return an error here because we want to go on and check the other finalities.
-					b.logger.Error("failed to get gap blocks", zap.Stringer("finality", b.batchData[idx].finality), zap.Error(err))
+					logger.Error("failed to get gap blocks", zap.Stringer("finality", b.batchData[idx].finality), zap.Error(err))
 					errorFound = true
 				} else {
 					// Play out the blocks in this batch. If the block number is zero, that means we failed to retrieve it, so we should stop there.
@@ -160,9 +198,10 @@ func (b *BatchPollConnector) pollBlocks(ctx context.Context, sink chan<- *NewBlo
 							errorFound = true
 							break
 						}
-						sink <- block
+
+						b.blockFeed.Send(block)
 						if b.generateSafe && b.batchData[idx].finality == Finalized {
-							sink <- block.Copy(Safe)
+							b.blockFeed.Send(block.Copy(Safe))
 						}
 						lastPublishedBlock = block
 					}
@@ -173,15 +212,15 @@ func (b *BatchPollConnector) pollBlocks(ctx context.Context, sink chan<- *NewBlo
 
 			if !errorFound {
 				// The original value of newBlocks is still good.
-				sink <- newBlock
+				b.blockFeed.Send(newBlock)
 				if b.generateSafe && b.batchData[idx].finality == Finalized {
-					sink <- newBlock.Copy(Safe)
+					b.blockFeed.Send(newBlock.Copy(Safe))
 				}
 			} else {
 				newBlocks[idx] = lastPublishedBlock
 			}
 		} else if newBlock.Number.Cmp(prevBlocks[idx].Number) < 0 {
-			b.logger.Debug("latest block number went backwards, ignoring it", zap.Stringer("finality", b.batchData[idx].finality), zap.Any("new", newBlock.Number), zap.Any("prev", prevBlocks[idx].Number))
+			logger.Debug("latest block number went backwards, ignoring it", zap.Stringer("finality", b.batchData[idx].finality), zap.Any("new", newBlock.Number), zap.Any("prev", prevBlocks[idx].Number))
 			newBlocks[idx] = prevBlocks[idx]
 		}
 	}
@@ -284,7 +323,7 @@ func (b *BatchPollConnector) getBlockRange(ctx context.Context, logger *zap.Logg
 		var n big.Int
 		m := &result.result
 		if m.Number == nil {
-			logger.Debug("number is nil, treating as zero", zap.Stringer("finality", finality))
+			logger.Debug("number is nil, treating as zero", zap.Stringer("finality", finality), zap.String("tag", b.batchData[idx].tag))
 		} else {
 			n = big.Int(*m.Number)
 		}
