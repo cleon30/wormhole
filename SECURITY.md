@@ -40,8 +40,13 @@ As these 3rd party audits are completed and issues are sufficiently addressed, w
 - **[April 2023 - Trail of Bits](https://github.com/wormhole-foundation/wormhole-audits/blob/main/Wormhole_Audit_Report_TrailOfBits_2023-04.pdf)**: _Guardian node: Governor and Watchers_
 - **[April 2023 - OtterSec](https://github.com/wormhole-foundation/wormhole-audits/blob/main/Wormhole_OtterSec_Sui_2023-04.pdf)**: _Sui Contracts_
 - **[May 2023 - Runtime Verification](https://github.com/wormhole-foundation/wormhole-audits/blob/main/2023-05_Runtime_Verification_Wormhole_EVM.pdf)**: _Formal Verification of EVM contracts_
-- **Q4 2023 - Neodyme (In Process)**: _Solana Contracts_
-- **Q1 2024 - OtterSec (Planned)**: _Solana Contracts_
+- **[Jan 2024 - Cyfrin](https://github.com/wormhole-foundation/wormhole-audits/blob/main/2024-01-10-cyfrin-thermae-v2.0.pdf)**: _Uniswap Liquidity Layer EVM Contracts_
+- **[Jan 2024 - OtterSec](https://github.com/wormhole-foundation/wormhole-audits/blob/main/2024-01-ottersec-terra.pdf)**: _Terra Classic Contract Upgrades_
+- **[Feb 2024 - Cyfrin](https://github.com/wormhole-foundation/wormhole-audits/blob/main/2024-04-09-cyfrin-wormhole-evm-cctp-v2-1.pdf)**: _CCTP EVM Contracts_
+- **[Mar 2024 - Cyfrin](https://github.com/wormhole-foundation/wormhole-audits/blob/main/2024-04-11-cyfrin-wormhole-evm-ntt.pdf)**: _NTT EVM Contracts_
+- **[Mar 2024 - Cantina](https://github.com/wormhole-foundation/wormhole-audits/blob/main/2024-04-cantina-wormhole-evm-ntt.pdf)**: _NTT EVM Contracts_
+- **[Mar 2024 - OtterSec](https://github.com/wormhole-foundation/wormhole-audits/blob/main/2024-03-28-ottersec-solana-ntt.pdf)**: _NTT Solana Contracts_
+- **[Mar 2024 - Neodyme](https://github.com/wormhole-foundation/wormhole-audits/blob/main/2024-04-12-neodyme-solana-ntt.pdf)**: _NTT Solana Contracts_
 
 ## Bug Bounty Program
 
@@ -98,7 +103,7 @@ It's important to remember this is an iterative process and to stay positive. If
 
 ## Chain Integrators
 
-As the list of chains connected to Wormhole increases, so does the risk that a given connected could introduce risks to the Wormhole network. As a result, Wormhole does have built-in safety features (e.g.: [Governor white-paper](https://github.com/wormhole-foundation/wormhole/blob/main/whitepapers/0007_governor.md)) to reduce the "blast radius" of such case. That said, a defense in depth strategy is required to do as much as possible to secure the network. As part of this methodology, the Wormhole project recommends that all connected chains current and future implement robust security programs of their own to do their part in managing chain compromise risk to the wormhole network.
+As the list of chains connected to Wormhole increases, so does the risk that a given connection could introduce risks to the Wormhole network. As a result, Wormhole does have built-in safety features (e.g.: [Governor white-paper](https://github.com/wormhole-foundation/wormhole/blob/main/whitepapers/0007_governor.md)) to reduce the "blast radius" of such case. That said, a defense in depth strategy is required to do as much as possible to secure the network. As part of this methodology, the Wormhole project recommends that all connected chains current and future implement robust security programs of their own to do their part in managing chain compromise risk to the Wormhole network.
 
 Here are a few ways in which connected chains can maintain high security standards:
 
@@ -122,7 +127,7 @@ Additionally, ensure:
 
 The Wormhole project maintains a social media monitoring program to stay abreast of important ecosystem developments.
 
-These developments include monitoring services like Twitter for key phrases and patterns such that the Wormhole project is informed of a compromise or vulnerability in a dependancy that could negatively affect Wormhole, its users, or the chains that Wormhole is connected to.
+These developments include monitoring services like Twitter for key phrases and patterns such that the Wormhole project is informed of a compromise or vulnerability in a dependency that could negatively affect Wormhole, its users, or the chains that Wormhole is connected to.
 
 In the case of a large ecosystem development that requires response, the Wormhole project will engage its security incident response program.
 
@@ -130,7 +135,7 @@ In the case of a large ecosystem development that requires response, the Wormhol
 
 The Wormhole project maintains an incident response program to respond to vulnerabilities or active threats to Wormhole, its users, or the ecosystems it's connected to.  Wormhole can be made aware about a security event from a variety of different sources (eg. bug bounty program, audit finding, security monitoring, social media, etc.)
 
-When a Wormhole project contributor becomes aware of a security event, that contributor immediately holds the role of [incident commander](https://en.wikipedia.org/wiki/Incident_commander) for the issue until they hand off to a more appropriate incident commander.  A contributor does not need to be a "security person" or have any special priviledges to hold the role of incident commander, they simply need to be responsible, communicate effectively, and maintain the following obligations to manage the incident to completion.
+When a Wormhole project contributor becomes aware of a security event, that contributor immediately holds the role of [incident commander](https://en.wikipedia.org/wiki/Incident_commander) for the issue until they hand off to a more appropriate incident commander.  A contributor does not need to be a "security person" or have any special privileges to hold the role of incident commander, they simply need to be responsible, communicate effectively, and maintain the following obligations to manage the incident to completion.
 
 The role of the incident commander for Wormhole includes the following minimum obligations:
 
@@ -169,7 +174,7 @@ The benefits of such an approach include the following:
 The caveats of such an approach include the following:
 
 - Speed to shutdown is limited by speed to develop the temporary bug fix (only for the unknown cases, known cases won't require development)
-- Speed to shutdown is limited by speed at which goverance can be passed to accept the temporary bug fix (slower for unknown cases and faster for known cases)
+- Speed to shutdown is limited by speed at which governance can be passed to accept the temporary bug fix (slower for unknown cases and faster for known cases)
 - Restoring after a shutdown will require a secondary governance action to either repoint the proxy contract to a non-shutdown implementation (known cases) or to revert the temporary patch and apply the long term patch (unknown cases)
 
 ## Security Monitoring

@@ -37,7 +37,7 @@ const (
 	observationRequestInboundBufferSize = 500
 
 	// observationRequestOutboundBufferSize configures the size of obsvReqSendC
-	// and thereby somewhat limits the amout of observation requests that can be sent in bursts to the network.
+	// and thereby somewhat limits the amount of observation requests that can be sent in bursts to the network.
 	observationRequestOutboundBufferSize = 100
 
 	// observationRequestPerChainBufferSize is the buffer size of the per-network reobservation channel
@@ -120,8 +120,8 @@ func (g *G) initializeBasic(rootCtxCancel context.CancelFunc) {
 	// Cross Chain Query Handler channels
 	g.chainQueryReqC = make(map[vaa.ChainID]chan *query.PerChainQueryInternal)
 	g.signedQueryReqC = makeChannelPair[*gossipv1.SignedQueryRequest](query.SignedQueryRequestChannelSize)
-	g.queryResponseC = makeChannelPair[*query.PerChainQueryResponseInternal](0)
-	g.queryResponsePublicationC = makeChannelPair[*query.QueryResponsePublication](0)
+	g.queryResponseC = makeChannelPair[*query.PerChainQueryResponseInternal](query.QueryResponseBufferSize)
+	g.queryResponsePublicationC = makeChannelPair[*query.QueryResponsePublication](query.QueryResponsePublicationChannelSize)
 
 	// Guardian set state managed by processor
 	g.gst = common.NewGuardianSetState(nil)

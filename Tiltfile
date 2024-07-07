@@ -61,6 +61,7 @@ config.define_bool("aptos", False, "Enable Aptos component")
 config.define_bool("algorand", False, "Enable Algorand component")
 config.define_bool("evm2", False, "Enable second Eth component")
 config.define_bool("solana", False, "Enable Solana component")
+config.define_bool("solana_watcher", False, "Enable Solana watcher on guardian")
 config.define_bool("pythnet", False, "Enable PythNet component")
 config.define_bool("terra_classic", False, "Enable Terra Classic component")
 config.define_bool("terra2", False, "Enable Terra 2 component")
@@ -86,6 +87,7 @@ sui = cfg.get("sui", ci)
 evm2 = cfg.get("evm2", ci)
 solana = cfg.get("solana", ci)
 pythnet = cfg.get("pythnet", False)
+solana_watcher = cfg.get("solana_watcher", solana or pythnet)
 terra_classic = cfg.get("terra_classic", ci)
 terra2 = cfg.get("terra2", ci)
 wormchain = cfg.get("wormchain", ci)
@@ -186,9 +188,9 @@ def build_node_yaml():
                     "--suiRPC",
                     "http://sui:9000",
                     "--suiMoveEventType",
-                    "0x7f6cebb8a489654d7a759483bd653c4be3e5ccfef17a8b5fd3ba98bd072fabc3::publish_message::WormholeMessage",
+                    "0x320a40bff834b5ffa12d7f5cc2220dd733dd9e8e91c425800203d06fb2b1fee8::publish_message::WormholeMessage",
                     "--suiWS",
-                    "sui:9000",
+                    "ws://sui:9000",
                 ]
 
             if evm2:
@@ -202,10 +204,12 @@ def build_node_yaml():
                     "ws://eth-devnet:8545",
                 ]
 
-            if solana:
+            if solana_watcher:
                 container["command"] += [
                     "--solanaRPC",
                     "http://solana-devnet:8899",
+                    "--solanaContract",
+                    "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o",
                 ]
 
             if pythnet:
@@ -227,7 +231,7 @@ def build_node_yaml():
                     "--terraLCD",
                     "http://terra-terrad:1317",
                     "--terraContract",
-                    "terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5",
+                    "terra14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9ssrc8au",
                 ]
 
             if terra2:
@@ -272,16 +276,24 @@ def build_node_yaml():
                     "--wormchainURL",
                     "wormchain:9090",
 
+                     "--accountantWS",
+                    "http://wormchain:26657",
+
                     "--accountantContract",
                     "wormhole14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9srrg465",
                     "--accountantKeyPath",
                     "/tmp/mounted-keys/wormchain/accountantKey",
                     "--accountantKeyPassPhrase",
                     "test0000",
-                    "--accountantWS",
-                    "http://wormchain:26657",
                     "--accountantCheckEnabled",
                     "true",
+
+                    "--accountantNttContract",
+                    "wormhole17p9rzwnnfxcjp32un9ug7yhhzgtkhvl9jfksztgw5uh69wac2pgshdnj3k",
+                    "--accountantNttKeyPath",
+                    "/tmp/mounted-keys/wormchain/accountantNttKey",
+                    "--accountantNttKeyPassPhrase",
+                    "test0000",
 
                     "--ibcContract",
                     "wormhole1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrq0kdhcj",
@@ -291,14 +303,14 @@ def build_node_yaml():
                     "http://wormchain:1317",
 
                     "--gatewayRelayerContract",
-                    "wormhole17p9rzwnnfxcjp32un9ug7yhhzgtkhvl9jfksztgw5uh69wac2pgshdnj3k",
+                    "wormhole1wn625s4jcmvk0szpl85rj5azkfc6suyvf75q6vrddscjdphtve8sca0pvl",
                     "--gatewayRelayerKeyPath",
                     "/tmp/mounted-keys/wormchain/gwrelayerKey",
                     "--gatewayRelayerKeyPassPhrase",
                     "test0000",
 
                     "--gatewayContract",
-                    "wormhole17p9rzwnnfxcjp32un9ug7yhhzgtkhvl9jfksztgw5uh69wac2pgshdnj3k",
+                    "wormhole1ghd753shjuwexxywmgs4xz7x2q732vcnkm6h2pyv9s6ah3hylvrqtm7t3h",
                     "--gatewayWS",
                     "ws://wormchain:26657/websocket",
                     "--gatewayLCD",
@@ -312,7 +324,7 @@ k8s_yaml_with_ns(build_node_yaml())
 guardian_resource_deps = ["eth-devnet"]
 if evm2:
     guardian_resource_deps = guardian_resource_deps + ["eth-devnet2"]
-if solana or pythnet:
+if solana_watcher:
     guardian_resource_deps = guardian_resource_deps + ["solana-devnet"]
 if near:
     guardian_resource_deps = guardian_resource_deps + ["near"]
@@ -415,19 +427,19 @@ if solana or pythnet:
         ref = "bridge-client",
         context = ".",
         only = ["./proto", "./solana", "./clients"],
-        dockerfile = "solana/legacy/Dockerfile.client",
+        dockerfile = "solana/Dockerfile.client",
         # Ignore target folders from local (non-container) development.
-        ignore = ["./solana/legacy/*/target"],
+        ignore = ["./solana/*/target"],
     )
 
     # solana smart contract
 
     docker_build(
         ref = "solana-contract",
-        context = "solana/legacy",
-        dockerfile = "solana/legacy/Dockerfile",
+        context = "solana",
+        dockerfile = "solana/Dockerfile",
         target = "builder",
-        build_args = {"BRIDGE_ADDRESS": "HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj"}
+        build_args = {"BRIDGE_ADDRESS": "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o"}
     )
 
     # solana local devnet
@@ -448,13 +460,14 @@ if solana or pythnet:
 
 docker_build(
     ref = "eth-node",
-    context = "./ethereum",
+    context = ".",
+    only = ["./ethereum", "./relayer/ethereum"],
     dockerfile = "./ethereum/Dockerfile",
 
     # ignore local node_modules (in case they're present)
-    ignore = ["./node_modules"],
+    ignore = ["./ethereum/node_modules","./relayer/ethereum/node_modules"],
     build_args = {"num_guardians": str(num_guardians), "dev": str(not ci)},
-  
+
     # sync external scripts for incremental development
     # (everything else needs to be restarted from scratch for determinism)
     #
@@ -512,7 +525,7 @@ if generic_relayer:
     docker_build(
         ref = "relayer-engine",
         context = ".",
-        only = ["./relayer/generic_relayer", "./ethereum/ts-scripts/relayer/config"],
+        only = ["./relayer/generic_relayer", "./relayer/ethereum/ts-scripts/relayer/config"],
         dockerfile = "relayer/generic_relayer/relayer-engine-v2/Dockerfile",
         build_args = {"dev": str(not ci)}
     )
@@ -523,7 +536,7 @@ k8s_yaml_with_ns("devnet/eth-devnet.yaml")
 k8s_resource(
     "eth-devnet",
     port_forwards = [
-        port_forward(8545, name = "Ganache RPC [:8545]", host = webHost),
+        port_forward(8545, name = "Anvil RPC [:8545]", host = webHost),
     ],
     labels = ["evm"],
     trigger_mode = trigger_mode,
@@ -535,7 +548,7 @@ if evm2:
     k8s_resource(
         "eth-devnet2",
         port_forwards = [
-            port_forward(8546, name = "Ganache RPC [:8546]", host = webHost),
+            port_forward(8546, 8545, name = "Anvil RPC [:8546]", host = webHost),
         ],
         labels = ["evm"],
         trigger_mode = trigger_mode,
@@ -596,6 +609,12 @@ if ci_tests:
         resource_deps = [], # uses devnet-consts.json, but wormchain/contracts/tools/test_accountant.sh handles waiting for guardian, not having deps gets the build earlier
     )
     k8s_resource(
+        "ntt-accountant-ci-tests",
+        labels = ["ci"],
+        trigger_mode = trigger_mode,
+        resource_deps = [], # uses devnet-consts.json, but wormchain/contracts/tools/test_ntt_accountant.sh handles waiting for guardian, not having deps gets the build earlier
+    )
+    k8s_resource(
         "query-ci-tests",
         labels = ["ci"],
         trigger_mode = trigger_mode,
@@ -633,20 +652,6 @@ if terra_classic:
         trigger_mode = trigger_mode,
     )
 
-    k8s_resource(
-        "terra-postgres",
-        labels = ["terra"],
-        trigger_mode = trigger_mode,
-    )
-
-    k8s_resource(
-        "terra-fcd",
-        resource_deps = ["terra-terrad", "terra-postgres"],
-        port_forwards = [port_forward(3060, name = "Terra FCD [:3060]", host = webHost)],
-        labels = ["terra"],
-        trigger_mode = trigger_mode,
-    )
-
 if terra2 or wormchain:
     docker_build(
         ref = "cosmwasm_artifacts",
@@ -676,20 +681,6 @@ if terra2:
             port_forward(26658, container_port = 26657, name = "Terra 2 RPC [:26658]", host = webHost),
             port_forward(1318, container_port = 1317, name = "Terra 2 LCD [:1318]", host = webHost),
         ],
-        labels = ["terra2"],
-        trigger_mode = trigger_mode,
-    )
-
-    k8s_resource(
-        "terra2-postgres",
-        labels = ["terra2"],
-        trigger_mode = trigger_mode,
-    )
-
-    k8s_resource(
-        "terra2-fcd",
-        resource_deps = ["terra2-terrad", "terra2-postgres"],
-        port_forwards = [port_forward(3061, container_port = 3060, name = "Terra 2 FCD [:3061]", host = webHost)],
         labels = ["terra2"],
         trigger_mode = trigger_mode,
     )
@@ -743,7 +734,6 @@ if sui:
         "sui",
         port_forwards = [
             port_forward(9000, 9000, name = "RPC [:9000]", host = webHost),
-            port_forward(5003, name = "Faucet [:5003]", host = webHost),
             port_forward(9184, name = "Prometheus [:9184]", host = webHost),
         ],
         labels = ["sui"],
@@ -757,7 +747,7 @@ if near:
         ref = "near-node",
         context = "near",
         dockerfile = "near/Dockerfile",
-        only = ["Dockerfile", "node_builder.sh", "start_node.sh", "README.md", "cert.pem"],
+        only = ["Dockerfile", "node_builder.sh", "start_node.sh", "README.md"],
     )
 
     docker_build(

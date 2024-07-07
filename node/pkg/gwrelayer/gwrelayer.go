@@ -220,7 +220,7 @@ func convertBech32AddressToWormhole(contractAddress string) (vaa.Address, error)
 // SubmitVAA checks to see if the VAA should be submitted to the smart contract, and if so, writes it to the channel for publishing.
 func (gwr *GatewayRelayer) SubmitVAA(v *vaa.VAA) {
 	var v2p VaaToPublish
-	if shouldPub, err := shouldPublishToIbcTranslator(v.Payload, vaa.ChainIDWormchain, gwr.ibcTranslatorPayloadAddress); err != nil {
+	if shouldPub, err := shouldPublishToIbcTranslator(gwr.tokenBridges, v, vaa.ChainIDWormchain, gwr.ibcTranslatorPayloadAddress); err != nil {
 		gwr.logger.Error("failed to check if vaa should be published", zap.String("msgId", v.MessageID()), zap.Error(err))
 		return
 	} else if shouldPub {
@@ -246,16 +246,20 @@ func (gwr *GatewayRelayer) SubmitVAA(v *vaa.VAA) {
 }
 
 // shouldPublishToIbcTranslator returns true if a message should be forwarded to the contract on wormchain, false if not.
-func shouldPublishToIbcTranslator(payload []byte, targetChain vaa.ChainID, targetAddress vaa.Address) (bool, error) {
-	if len(payload) == 0 {
+func shouldPublishToIbcTranslator(tokenBridges tokenBridgeMap, v *vaa.VAA, targetChain vaa.ChainID, targetAddress vaa.Address) (bool, error) {
+	if _, exists := tokenBridges[tokenBridgeKey{emitterChainId: v.EmitterChain, emitterAddr: v.EmitterAddress}]; !exists {
 		return false, nil
 	}
 
-	if payload[0] != 3 {
+	if len(v.Payload) == 0 {
 		return false, nil
 	}
 
-	hdr, err := vaa.DecodeTransferPayloadHdr(payload)
+	if v.Payload[0] != 3 {
+		return false, nil
+	}
+
+	hdr, err := vaa.DecodeTransferPayloadHdr(v.Payload)
 	if err != nil {
 		return false, fmt.Errorf("failed to decode payload: %w", err)
 	}
@@ -407,7 +411,15 @@ func SubmitVAAToContract(
 		return txResp, fmt.Errorf("submit failed: %s", txResp.TxResponse.RawLog)
 	}
 
-	logger.Info("done sending broadcast", zap.String("msgId", v2p.V.MessageID()), zap.String("contract", v2p.ContractAddress), zap.Uint8("vaaType", uint8(v2p.VType)), zap.Int64("gasUsed", txResp.TxResponse.GasUsed), zap.Stringer("elapsedTime", time.Since(start)))
+	logger.Info("done sending broadcast",
+		zap.String("msgId", v2p.V.MessageID()),
+		zap.String("contract", v2p.ContractAddress),
+		zap.Uint8("vaaType", uint8(v2p.VType)),
+		zap.Int64("gasUsed", txResp.TxResponse.GasUsed),
+		zap.Stringer("elapsedTime", time.Since(start)),
+		zap.String("txHash", txResp.TxResponse.TxHash),
+	)
+
 	logger.Debug("in SubmitVAAToContract, done sending broadcast", zap.String("resp", wormchainConn.BroadcastTxResponseToString(txResp)))
 
 	return txResp, nil

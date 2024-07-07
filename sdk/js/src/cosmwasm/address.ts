@@ -15,8 +15,13 @@ import {
   CosmWasmChainName,
   isTerraChain,
   CHAIN_ID_KUJIRA,
+  CHAIN_ID_NEUTRON,
   CHAIN_ID_OSMOSIS,
   CHAIN_ID_CELESTIA,
+  CHAIN_ID_STARGAZE,
+  CHAIN_ID_SEDA,
+  CHAIN_ID_DYMENSION,
+  CHAIN_ID_PROVENANCE,
 } from "../utils";
 
 export const isNativeDenomInjective = (denom: string) => denom === "inj";
@@ -28,7 +33,12 @@ export const isNativeDenomCosmosHub = (denom: string) => denom === "uatom";
 export const isNativeDenomEvmos = (denom: string) =>
   denom === "aevmos" || denom === "atevmos";
 export const isNativeDenomKujira = (denom: string) => denom === "ukuji";
+export const isNativeDenomNeutron = (denom: string) => denom === "untrn";
 export const isNativeDenomCelestia = (denom: string) => denom === "utia";
+export const isNativeDenomStargaze = (denom: string) => denom === "ustars";
+export const isNativeDenomSeda = (denom: string) => denom === "aseda";
+export const isNativeDenomDymension = (denom: string) => denom === "adym";
+export const isNativeDenomProvenance = (denom: string) => denom === "nhash";
 
 export function isNativeCosmWasmDenom(
   chainId: CosmWasmChainId,
@@ -44,7 +54,12 @@ export function isNativeCosmWasmDenom(
     (chainId === CHAIN_ID_COSMOSHUB && isNativeDenomCosmosHub(address)) ||
     (chainId === CHAIN_ID_EVMOS && isNativeDenomEvmos(address)) ||
     (chainId === CHAIN_ID_KUJIRA && isNativeDenomKujira(address)) ||
-    (chainId === CHAIN_ID_CELESTIA && isNativeDenomCelestia(address))
+    (chainId === CHAIN_ID_NEUTRON && isNativeDenomNeutron(address)) ||
+    (chainId === CHAIN_ID_CELESTIA && isNativeDenomCelestia(address)) ||
+    (chainId === CHAIN_ID_STARGAZE && isNativeDenomStargaze(address)) ||
+    (chainId === CHAIN_ID_SEDA && isNativeDenomSeda(address)) ||
+    (chainId === CHAIN_ID_DYMENSION && isNativeDenomDymension(address)) ||
+    (chainId === CHAIN_ID_PROVENANCE && isNativeDenomProvenance(address))
   );
 }
 

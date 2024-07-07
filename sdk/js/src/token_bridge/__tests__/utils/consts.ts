@@ -1,10 +1,9 @@
-import { describe, expect, it } from "@jest/globals";
-import { Connection, PublicKey } from "@solana/web3.js";
-
 const ci = !!process.env.CI;
 
 // see devnet.md
-export const ETH_NODE_URL = ci ? "ws://eth-devnet:8545" : "ws://localhost:8545";
+export const ETH_NODE_URL = ci
+  ? "http://eth-devnet:8545"
+  : "http://localhost:8545";
 export const ETH_PRIVATE_KEY =
   "0x4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d"; // account 0
 // account 1 used by NFT tests
@@ -24,6 +23,10 @@ export const ETH_PRIVATE_KEY9 =
   "0xb0057716d5917badaf911b193b12b910811c1497b5bada8d7711f758981c3773"; // account 9 - accountant tests
 export const ETH_PRIVATE_KEY10 =
   "0x77c5495fbb039eed474fc940f29955ed0531693cc9212911efd35dff0373153f"; // account 10 - sui tests
+export const ETH_PRIVATE_KEY11 =
+  "0xd99b5b29e6da2528bf458b26237a6cf8655a3e3276c1cdc0de1f98cefee81c01"; // account 11 - ntt-accountant tests
+export const ETH_PRIVATE_KEY12 =
+  "0x9b9c613a36396172eab2d34d72331c8ca83a358781883a535d2941f66db07b24"; // account 12 - ntt-accountant tests
 export const SOLANA_HOST = ci
   ? "http://solana-devnet:8899"
   : "http://localhost:8899";
@@ -40,12 +43,6 @@ export const TERRA2_NODE_URL = ci
   ? "http://terra2-terrad:1317"
   : "http://localhost:1318";
 export const TERRA_CHAIN_ID = "localterra";
-export const TERRA_GAS_PRICES_URL = ci
-  ? "http://terra-fcd:3060/v1/txs/gas_prices"
-  : "http://localhost:3060/v1/txs/gas_prices";
-export const TERRA2_GAS_PRICES_URL = ci
-  ? "http://terra2-fcd:3060/v1/txs/gas_prices"
-  : "http://localhost:3061/v1/txs/gas_prices";
 // NOTE: test1 is used by getIsTransferCompletedTerra, so avoid using it in the integration tests
 // Accounts from https://github.com/terra-money/LocalTerra/blob/main/README.md#accounts
 export const TERRA_PUBLIC_KEY = "terra17tv2hvwpg0ukqgd2y5ct2w54fyan7z0zxrm2f9"; // test7
@@ -98,6 +95,3 @@ export const APTOS_PRIVATE_KEY =
   "537c1f91e56891445b491068f519b705f8c0f1a1e66111816dd5d4aa85b8113d";
 
 export const SUI_NODE_URL = ci ? "http://sui:9000" : "http://localhost:9000";
-export const SUI_FAUCET_URL = ci
-  ? "http://sui:5003/gas"
-  : "http://localhost:5003/gas";

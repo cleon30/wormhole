@@ -2,11 +2,15 @@
 package adminrpc
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"testing"
 	"time"
 
+	wh_common "github.com/certusone/wormhole/node/pkg/common"
+	"github.com/certusone/wormhole/node/pkg/db"
+	"github.com/certusone/wormhole/node/pkg/governor"
 	nodev1 "github.com/certusone/wormhole/node/pkg/proto/node/v1"
 	"github.com/certusone/wormhole/node/pkg/watchers/evm/connectors"
 	"github.com/certusone/wormhole/node/pkg/watchers/evm/connectors/ethabi"
@@ -17,9 +21,11 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/event"
 	ethRpc "github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wormhole-foundation/wormhole/sdk/vaa"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/encoding/prototext"
 )
 
 type mockEVMConnector struct {
@@ -269,4 +275,129 @@ func TestSignExistingVAA_Valid(t *testing.T) {
 	require.NoError(t, err)
 	v2 := generateMockVAA(1, append(gsKeys, s.gk))
 	require.Equal(t, v2, res.Vaa)
+}
+
+const govGuardianSetIndex = uint32(4)
+
+var govTimestamp = time.Now()
+
+const govEmitterChain = vaa.ChainIDSolana
+
+var govEmitterAddr vaa.Address = [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4}
+
+// verifyGovernanceVAA verifies the VAA fields of a generated governance VAA. Note that it doesn't verify the payload because that is
+// already verified in `sdk/vaa/payload_test` and we don't want to duplicate all those arrays.
+func verifyGovernanceVAA(t *testing.T, v *vaa.VAA, expectedSeqNo uint64, expectedNonce uint32) {
+	t.Helper()
+	require.NotNil(t, v)
+	assert.Equal(t, uint8(vaa.SupportedVAAVersion), v.Version)
+	assert.Equal(t, govGuardianSetIndex, v.GuardianSetIndex)
+	assert.Nil(t, v.Signatures)
+	assert.Equal(t, govTimestamp, v.Timestamp)
+	assert.Equal(t, expectedNonce, v.Nonce)
+	assert.Equal(t, expectedSeqNo, v.Sequence)
+	assert.Equal(t, uint8(32), v.ConsistencyLevel)
+	assert.Equal(t, govEmitterChain, v.EmitterChain)
+	assert.True(t, bytes.Equal(govEmitterAddr[:], v.EmitterAddress[:]))
+}
+
+// Test_adminCommands executes all of the tests in prototext_test.go, unmarshaling the prototext and feeding it into `GovMsgToVaa`.
+func Test_adminCommands(t *testing.T) {
+	for _, tst := range adminCommandTest {
+		t.Run(tst.label, func(t *testing.T) {
+			var msg nodev1.InjectGovernanceVAARequest
+			err := prototext.Unmarshal([]byte(tst.prototext), &msg)
+			require.NoError(t, err)
+			require.Equal(t, 1, len(msg.Messages))
+			govMsg := msg.Messages[0]
+			vaa, err := GovMsgToVaa(govMsg, govGuardianSetIndex, govTimestamp)
+			if tst.errText == "" {
+				require.NoError(t, err)
+				verifyGovernanceVAA(t, vaa, govMsg.Sequence, govMsg.Nonce)
+			} else {
+				require.ErrorContains(t, err, tst.errText)
+			}
+		})
+	}
+}
+
+func newNodePrivilegedServiceForGovernorTests() *nodePrivilegedService {
+	gov := governor.NewChainGovernor(zap.NewNop(), &db.MockGovernorDB{}, wh_common.GoTest)
+
+	return &nodePrivilegedService{
+		db:              nil,
+		injectC:         nil,
+		obsvReqSendC:    nil,
+		logger:          nil,
+		signedInC:       nil,
+		governor:        gov,
+		evmConnector:    nil,
+		gk:              nil,
+		guardianAddress: common.Address{},
+	}
+}
+
+func TestChainGovernorResetReleaseTimer(t *testing.T) {
+	service := newNodePrivilegedServiceForGovernorTests()
+
+	// governor has no VAAs enqueued, so if we receive this error we know the input validation passed
+	success := `vaa not found in the pending list`
+	boundsCheckFailure := `the specified number of days falls outside the range of 1 to 7`
+	vaaIdLengthFailure := `the VAA id must be specified as "chainId/emitterAddress/seqNum"`
+
+	tests := map[string]struct {
+		vaaId          string
+		numDays        uint32
+		expectedResult string
+	}{
+		"EmptyVaaId": {
+			vaaId:          "",
+			numDays:        1,
+			expectedResult: vaaIdLengthFailure,
+		},
+		"NumDaysEqualsLowerBoundary": {
+			vaaId:          "valid",
+			numDays:        1,
+			expectedResult: success,
+		},
+		"NumDaysLowerThanLowerBoundary": {
+			vaaId:          "valid",
+			numDays:        0,
+			expectedResult: boundsCheckFailure,
+		},
+		"NumDaysEqualsUpperBoundary": {
+			vaaId:          "valid",
+			numDays:        maxResetReleaseTimerDays,
+			expectedResult: success,
+		},
+		"NumDaysExceedsUpperBoundary": {
+			vaaId:          "valid",
+			numDays:        maxResetReleaseTimerDays + 1,
+			expectedResult: boundsCheckFailure,
+		},
+		"EmptyVaaIdAndNumDaysExceedsUpperBoundary": {
+			vaaId:          "",
+			numDays:        maxResetReleaseTimerDays + 1,
+			expectedResult: vaaIdLengthFailure,
+		},
+		"NumDaysSignificantlyExceedsUpperBoundary": {
+			vaaId:          "valid",
+			numDays:        maxResetReleaseTimerDays + 1000,
+			expectedResult: boundsCheckFailure,
+		},
+	}
+
+	ctx := context.Background()
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			req := nodev1.ChainGovernorResetReleaseTimerRequest{
+				VaaId:   test.vaaId,
+				NumDays: test.numDays,
+			}
+
+			_, err := service.ChainGovernorResetReleaseTimer(ctx, &req)
+			assert.EqualError(t, err, test.expectedResult)
+		})
+	}
+
 }

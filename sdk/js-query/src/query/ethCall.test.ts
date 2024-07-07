@@ -1,20 +1,18 @@
-import {
-  afterAll,
-  beforeAll,
-  describe,
-  expect,
-  jest,
-  test,
-} from "@jest/globals";
+import { beforeAll, describe, expect, jest, test } from "@jest/globals";
+import axios, { AxiosResponse } from "axios";
 import Web3, { ETH_DATA_FORMAT } from "web3";
-import axios from "axios";
 import {
+  ChainQueryType,
+  EthCallByTimestampQueryRequest,
+  EthCallByTimestampQueryResponse,
   EthCallData,
   EthCallQueryRequest,
-  EthCallByTimestampQueryRequest,
+  EthCallQueryResponse,
   EthCallWithFinalityQueryRequest,
+  EthCallWithFinalityQueryResponse,
   PerChainQueryRequest,
   QueryRequest,
+  QueryResponse,
   sign,
 } from "..";
 
@@ -22,7 +20,7 @@ jest.setTimeout(125000);
 
 const CI = process.env.CI;
 const ENV = "DEVNET";
-const ETH_NODE_URL = CI ? "ws://eth-devnet:8545" : "ws://localhost:8545";
+const ETH_NODE_URL = CI ? "http://eth-devnet:8545" : "http://localhost:8545";
 
 const SERVER_URL = CI ? "http://query-server:" : "http://localhost:";
 const CCQ_SERVER_URL = SERVER_URL + "6069/v1";
@@ -36,10 +34,6 @@ let web3: Web3;
 
 beforeAll(() => {
   web3 = new Web3(ETH_NODE_URL);
-});
-
-afterAll(() => {
-  web3.provider?.disconnect();
 });
 
 function createTestEthCallData(
@@ -98,14 +92,14 @@ describe("eth call", () => {
   test("serialize request", () => {
     const toAddress = "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270";
     const nameCallData = createTestEthCallData(toAddress, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       toAddress,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const ethCall = new EthCallQueryRequest("0x28d9630", [
       nameCallData,
-      totalSupplyCallData,
+      decimalsCallData,
     ]);
     const chainId = 5;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -113,20 +107,20 @@ describe("eth call", () => {
     const request = new QueryRequest(nonce, [ethQuery]);
     const serialized = request.serialize();
     expect(Buffer.from(serialized).toString("hex")).toEqual(
-      "0100000001010005010000004600000009307832386439363330020d500b1d8e8ef31e21c99d1db9a6444d3adf12700000000406fdde030d500b1d8e8ef31e21c99d1db9a6444d3adf12700000000418160ddd"
+      "0100000001010005010000004600000009307832386439363330020d500b1d8e8ef31e21c99d1db9a6444d3adf12700000000406fdde030d500b1d8e8ef31e21c99d1db9a6444d3adf127000000004313ce567"
     );
   });
   test("successful query", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const blockNumber = await web3.eth.getBlockNumber(ETH_DATA_FORMAT);
     const ethCall = new EthCallQueryRequest(blockNumber, [
       nameCallData,
-      totalSupplyCallData,
+      decimalsCallData,
     ]);
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -144,21 +138,45 @@ describe("eth call", () => {
       { headers: { "X-API-Key": "my_secret_key" } }
     );
     expect(response.status).toBe(200);
+
+    const queryResponse = QueryResponse.from(response.data.bytes);
+    expect(queryResponse.version).toEqual(1);
+    expect(queryResponse.requestChainId).toEqual(0);
+    expect(queryResponse.request.version).toEqual(1);
+    expect(queryResponse.request.requests.length).toEqual(1);
+    expect(queryResponse.request.requests[0].chainId).toEqual(2);
+    expect(queryResponse.request.requests[0].query.type()).toEqual(
+      ChainQueryType.EthCall
+    );
+
+    const ecr = queryResponse.responses[0].response as EthCallQueryResponse;
+    expect(ecr.blockNumber.toString()).toEqual(BigInt(blockNumber).toString());
+    expect(ecr.blockHash).toEqual(
+      (await web3.eth.getBlock(BigInt(blockNumber))).hash
+    );
+    expect(ecr.results.length).toEqual(2);
+    expect(ecr.results[0]).toEqual(
+      // Name
+      "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d5772617070656420457468657200000000000000000000000000000000000000"
+    );
+    expect(ecr.results[1]).toEqual(
+      // Decimals
+      "0x0000000000000000000000000000000000000000000000000000000000000012"
+    );
   });
-  // TODO: This test works in Goerli testnet but not devnet. Try it again after PR #3395 lands.
-  test.skip("get block by hash should work", async () => {
+  test("get block by hash should work", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const blockNumber = await web3.eth.getBlockNumber(ETH_DATA_FORMAT);
     const block = await web3.eth.getBlock(BigInt(blockNumber));
     if (block.hash != undefined) {
       const ethCall = new EthCallQueryRequest(block.hash?.toString(), [
         nameCallData,
-        totalSupplyCallData,
+        decimalsCallData,
       ]);
       const chainId = 2;
       const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -180,15 +198,15 @@ describe("eth call", () => {
   });
   test("missing api-key should fail", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const blockNumber = await web3.eth.getBlockNumber(ETH_DATA_FORMAT);
     const ethCall = new EthCallQueryRequest(blockNumber, [
       nameCallData,
-      totalSupplyCallData,
+      decimalsCallData,
     ]);
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -212,15 +230,15 @@ describe("eth call", () => {
   });
   test("invalid api-key should fail", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const blockNumber = await web3.eth.getBlockNumber(ETH_DATA_FORMAT);
     const ethCall = new EthCallQueryRequest(blockNumber, [
       nameCallData,
-      totalSupplyCallData,
+      decimalsCallData,
     ]);
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -248,15 +266,15 @@ describe("eth call", () => {
   });
   test("unauthorized call should fail", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const blockNumber = await web3.eth.getBlockNumber(ETH_DATA_FORMAT);
     const ethCall = new EthCallQueryRequest(blockNumber, [
       nameCallData,
-      totalSupplyCallData, // API key "my_secret_key_2" is not authorized to do total supply.
+      decimalsCallData, // API key "my_secret_key_2" is not authorized to do total supply.
     ]);
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -279,22 +297,22 @@ describe("eth call", () => {
         err = true;
         expect(error.response.status).toBe(400);
         expect(error.response.data).toBe(
-          `call "ethCall:2:000000000000000000000000ddb64fe46a91d46ee29420539fc25fd07c5fea3e:18160ddd" not authorized\n`
+          `call "ethCall:2:000000000000000000000000ddb64fe46a91d46ee29420539fc25fd07c5fea3e:313ce567" not authorized\n`
         );
       });
     expect(err).toBe(true);
   });
   test("unsigned query should fail if not allowed", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const blockNumber = await web3.eth.getBlockNumber(ETH_DATA_FORMAT);
     const ethCall = new EthCallQueryRequest(blockNumber, [
       nameCallData,
-      totalSupplyCallData,
+      decimalsCallData,
     ]);
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -366,16 +384,16 @@ describe("eth call", () => {
   test("serialize eth_call_by_timestamp request", () => {
     const toAddress = "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270";
     const nameCallData = createTestEthCallData(toAddress, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       toAddress,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const ethCall = new EthCallByTimestampQueryRequest(
       BigInt(1697216322000000),
       "0x28d9630",
       "0x28d9631",
-      [nameCallData, totalSupplyCallData]
+      [nameCallData, decimalsCallData]
     );
     const chainId = 5;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -383,15 +401,15 @@ describe("eth call", () => {
     const request = new QueryRequest(nonce, [ethQuery]);
     const serialized = request.serialize();
     expect(Buffer.from(serialized).toString("hex")).toEqual(
-      "0100000001010005020000005b0006079bf7fad4800000000930783238643936333000000009307832386439363331020d500b1d8e8ef31e21c99d1db9a6444d3adf12700000000406fdde030d500b1d8e8ef31e21c99d1db9a6444d3adf12700000000418160ddd"
+      "0100000001010005020000005b0006079bf7fad4800000000930783238643936333000000009307832386439363331020d500b1d8e8ef31e21c99d1db9a6444d3adf12700000000406fdde030d500b1d8e8ef31e21c99d1db9a6444d3adf127000000004313ce567"
     );
   });
   test("successful eth_call_by_timestamp query with block hints", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const [targetBlockTime, targetBlockNumber, followingBlockNumber] =
       await getEthCallByTimestampArgs();
@@ -399,7 +417,7 @@ describe("eth call", () => {
       targetBlockTime,
       targetBlockNumber.toString(16),
       followingBlockNumber.toString(16),
-      [nameCallData, totalSupplyCallData]
+      [nameCallData, decimalsCallData]
     );
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -417,13 +435,47 @@ describe("eth call", () => {
       { headers: { "X-API-Key": "my_secret_key" } }
     );
     expect(response.status).toBe(200);
+
+    const queryResponse = QueryResponse.from(response.data.bytes);
+    expect(queryResponse.version).toEqual(1);
+    expect(queryResponse.requestChainId).toEqual(0);
+    expect(queryResponse.request.version).toEqual(1);
+    expect(queryResponse.request.requests.length).toEqual(1);
+    expect(queryResponse.request.requests[0].chainId).toEqual(2);
+    expect(queryResponse.request.requests[0].query.type()).toEqual(
+      ChainQueryType.EthCallByTimeStamp
+    );
+
+    const ecr = queryResponse.responses[0]
+      .response as EthCallByTimestampQueryResponse;
+    expect(ecr.targetBlockNumber.toString()).toEqual(
+      BigInt(targetBlockNumber).toString()
+    );
+    expect(ecr.targetBlockHash).toEqual(
+      (await web3.eth.getBlock(BigInt(targetBlockNumber))).hash
+    );
+    expect(ecr.followingBlockNumber.toString()).toEqual(
+      BigInt(followingBlockNumber).toString()
+    );
+    expect(ecr.followingBlockHash).toEqual(
+      (await web3.eth.getBlock(BigInt(followingBlockNumber))).hash
+    );
+    expect(ecr.results.length).toEqual(2);
+    expect(ecr.results[0]).toEqual(
+      // Name
+      "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d5772617070656420457468657200000000000000000000000000000000000000"
+    );
+    expect(ecr.results[1]).toEqual(
+      // Decimals
+      "0x0000000000000000000000000000000000000000000000000000000000000012"
+    );
   });
   test("successful eth_call_by_timestamp query without block hints", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const [targetBlockTime, targetBlockNumber, followingBlockNumber] =
       await getEthCallByTimestampArgs();
@@ -431,7 +483,7 @@ describe("eth call", () => {
       targetBlockTime + BigInt(5000),
       "",
       "",
-      [nameCallData, totalSupplyCallData]
+      [nameCallData, decimalsCallData]
     );
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -449,13 +501,47 @@ describe("eth call", () => {
       { headers: { "X-API-Key": "my_secret_key" } }
     );
     expect(response.status).toBe(200);
+
+    const queryResponse = QueryResponse.from(response.data.bytes);
+    expect(queryResponse.version).toEqual(1);
+    expect(queryResponse.requestChainId).toEqual(0);
+    expect(queryResponse.request.version).toEqual(1);
+    expect(queryResponse.request.requests.length).toEqual(1);
+    expect(queryResponse.request.requests[0].chainId).toEqual(2);
+    expect(queryResponse.request.requests[0].query.type()).toEqual(
+      ChainQueryType.EthCallByTimeStamp
+    );
+
+    const ecr = queryResponse.responses[0]
+      .response as EthCallByTimestampQueryResponse;
+    expect(ecr.targetBlockNumber.toString()).toEqual(
+      BigInt(targetBlockNumber).toString()
+    );
+    expect(ecr.targetBlockHash).toEqual(
+      (await web3.eth.getBlock(BigInt(targetBlockNumber))).hash
+    );
+    expect(ecr.followingBlockNumber.toString()).toEqual(
+      BigInt(followingBlockNumber).toString()
+    );
+    expect(ecr.followingBlockHash).toEqual(
+      (await web3.eth.getBlock(BigInt(followingBlockNumber))).hash
+    );
+    expect(ecr.results.length).toEqual(2);
+    expect(ecr.results[0]).toEqual(
+      // Name
+      "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d5772617070656420457468657200000000000000000000000000000000000000"
+    );
+    expect(ecr.results[1]).toEqual(
+      // Decimals
+      "0x0000000000000000000000000000000000000000000000000000000000000012"
+    );
   });
   test("eth_call_by_timestamp query without target timestamp", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const followingBlockNum = await web3.eth.getBlockNumber(ETH_DATA_FORMAT);
     const followingBlock = await web3.eth.getBlock(BigInt(followingBlockNum));
@@ -466,7 +552,7 @@ describe("eth call", () => {
       BigInt(0),
       targetBlock.number.toString(16),
       followingBlock.number.toString(16),
-      [nameCallData, totalSupplyCallData]
+      [nameCallData, decimalsCallData]
     );
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -489,17 +575,17 @@ describe("eth call", () => {
         err = true;
         expect(error.response.status).toBe(400);
         expect(error.response.data).toBe(
-          `failed to validate request: failed to validate per chain query 0: chain specific query is invalid: target timestamp may not be zero\n`
+          `failed to unmarshal request: unmarshaled request failed validation: failed to validate per chain query 0: chain specific query is invalid: target timestamp may not be zero\n`
         );
       });
     expect(err).toBe(true);
   });
   test("eth_call_by_timestamp query with following hint but not target hint should fail", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const followingBlockNum = await web3.eth.getBlockNumber(ETH_DATA_FORMAT);
     const followingBlock = await web3.eth.getBlock(BigInt(followingBlockNum));
@@ -511,7 +597,7 @@ describe("eth call", () => {
       targetBlockTime,
       "",
       followingBlock.number.toString(16),
-      [nameCallData, totalSupplyCallData]
+      [nameCallData, decimalsCallData]
     );
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -534,17 +620,17 @@ describe("eth call", () => {
         err = true;
         expect(error.response.status).toBe(400);
         expect(error.response.data).toBe(
-          `failed to validate request: failed to validate per chain query 0: chain specific query is invalid: if either the target or following block id is unset, they both must be unset\n`
+          `failed to unmarshal request: unmarshaled request failed validation: failed to validate per chain query 0: chain specific query is invalid: if either the target or following block id is unset, they both must be unset\n`
         );
       });
     expect(err).toBe(true);
   });
   test("eth_call_by_timestamp query with target hint but not following hint should fail", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const followingBlockNum = await web3.eth.getBlockNumber(ETH_DATA_FORMAT);
     const targetBlock = await web3.eth.getBlock(
@@ -555,7 +641,7 @@ describe("eth call", () => {
       targetBlockTime,
       targetBlock.number.toString(16),
       "",
-      [nameCallData, totalSupplyCallData]
+      [nameCallData, decimalsCallData]
     );
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -578,7 +664,7 @@ describe("eth call", () => {
         err = true;
         expect(error.response.status).toBe(400);
         expect(error.response.data).toBe(
-          `failed to validate request: failed to validate per chain query 0: chain specific query is invalid: if either the target or following block id is unset, they both must be unset\n`
+          `failed to unmarshal request: unmarshaled request failed validation: failed to validate per chain query 0: chain specific query is invalid: if either the target or following block id is unset, they both must be unset\n`
         );
       });
     expect(err).toBe(true);
@@ -586,15 +672,15 @@ describe("eth call", () => {
   test("serialize eth_call_with_finality request", () => {
     const toAddress = "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270";
     const nameCallData = createTestEthCallData(toAddress, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       toAddress,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const ethCall = new EthCallWithFinalityQueryRequest(
       "0x28d9630",
       "finalized",
-      [nameCallData, totalSupplyCallData]
+      [nameCallData, decimalsCallData]
     );
     const chainId = 5;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -602,23 +688,23 @@ describe("eth call", () => {
     const request = new QueryRequest(nonce, [ethQuery]);
     const serialized = request.serialize();
     expect(Buffer.from(serialized).toString("hex")).toEqual(
-      "01000000010100050300000053000000093078323864393633300000000966696e616c697a6564020d500b1d8e8ef31e21c99d1db9a6444d3adf12700000000406fdde030d500b1d8e8ef31e21c99d1db9a6444d3adf12700000000418160ddd"
+      "01000000010100050300000053000000093078323864393633300000000966696e616c697a6564020d500b1d8e8ef31e21c99d1db9a6444d3adf12700000000406fdde030d500b1d8e8ef31e21c99d1db9a6444d3adf127000000004313ce567"
     );
   });
   test("successful eth_call_with_finality query", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
-    // Jump into the future a bit so the watcher has to wait for finality.
-    const blockNumber =
-      Number(await web3.eth.getBlockNumber(ETH_DATA_FORMAT)) + 10;
+    const blockNumber = Number(
+      (await web3.eth.getBlock("finalized", false, ETH_DATA_FORMAT)).number
+    );
     const ethCall = new EthCallWithFinalityQueryRequest(
       blockNumber.toString(16),
       "finalized",
-      [nameCallData, totalSupplyCallData]
+      [nameCallData, decimalsCallData]
     );
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -636,18 +722,44 @@ describe("eth call", () => {
       { headers: { "X-API-Key": "my_secret_key" } }
     );
     expect(response.status).toBe(200);
+
+    const queryResponse = QueryResponse.from(response.data.bytes);
+    expect(queryResponse.version).toEqual(1);
+    expect(queryResponse.requestChainId).toEqual(0);
+    expect(queryResponse.request.version).toEqual(1);
+    expect(queryResponse.request.requests.length).toEqual(1);
+    expect(queryResponse.request.requests[0].chainId).toEqual(2);
+    expect(queryResponse.request.requests[0].query.type()).toEqual(
+      ChainQueryType.EthCallWithFinality
+    );
+
+    const ecr = queryResponse.responses[0]
+      .response as EthCallWithFinalityQueryResponse;
+    expect(ecr.blockNumber.toString()).toEqual(BigInt(blockNumber).toString());
+    expect(ecr.blockHash).toEqual(
+      (await web3.eth.getBlock(BigInt(blockNumber))).hash
+    );
+    expect(ecr.results.length).toEqual(2);
+    expect(ecr.results[0]).toEqual(
+      // Name
+      "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d5772617070656420457468657200000000000000000000000000000000000000"
+    );
+    expect(ecr.results[1]).toEqual(
+      // Decimals
+      "0x0000000000000000000000000000000000000000000000000000000000000012"
+    );
   });
   test("eth_call_with_finality query without finality should fail", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const ethCall = new EthCallWithFinalityQueryRequest(
       "0x28d9630",
       "" as any,
-      [nameCallData, totalSupplyCallData]
+      [nameCallData, decimalsCallData]
     );
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -670,22 +782,22 @@ describe("eth call", () => {
         err = true;
         expect(error.response.status).toBe(400);
         expect(error.response.data).toBe(
-          `failed to validate request: failed to validate per chain query 0: chain specific query is invalid: finality is required\n`
+          `failed to unmarshal request: unmarshaled request failed validation: failed to validate per chain query 0: chain specific query is invalid: finality is required\n`
         );
       });
     expect(err).toBe(true);
   });
   test("eth_call_with_finality query with bad finality should fail", async () => {
     const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
-    const totalSupplyCallData = createTestEthCallData(
+    const decimalsCallData = createTestEthCallData(
       WETH_ADDRESS,
-      "totalSupply",
-      "uint256"
+      "decimals",
+      "uint8"
     );
     const ethCall = new EthCallWithFinalityQueryRequest(
       "0x28d9630",
       "HelloWorld" as any,
-      [nameCallData, totalSupplyCallData]
+      [nameCallData, decimalsCallData]
     );
     const chainId = 2;
     const ethQuery = new PerChainQueryRequest(chainId, ethCall);
@@ -708,9 +820,131 @@ describe("eth call", () => {
         err = true;
         expect(error.response.status).toBe(400);
         expect(error.response.data).toBe(
-          `failed to validate request: failed to validate per chain query 0: chain specific query is invalid: finality must be "finalized" or "safe", is "HelloWorld"\n`
+          `failed to unmarshal request: unmarshaled request failed validation: failed to validate per chain query 0: chain specific query is invalid: finality must be "finalized" or "safe", is "HelloWorld"\n`
         );
       });
     expect(err).toBe(true);
+  });
+  test("concurrent queries", async () => {
+    const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
+    const decimalsCallData = createTestEthCallData(
+      WETH_ADDRESS,
+      "decimals",
+      "uint8"
+    );
+    const blockNumber = await web3.eth.getBlockNumber(ETH_DATA_FORMAT);
+    const ethCall = new EthCallQueryRequest(blockNumber, [
+      nameCallData,
+      decimalsCallData,
+    ]);
+    const chainId = 2;
+    const ethQuery = new PerChainQueryRequest(chainId, ethCall);
+    let nonce = 1;
+    let promises: Promise<AxiosResponse<any, any>>[] = [];
+    for (let count = 0; count < 20; count++) {
+      nonce += 1;
+      const request = new QueryRequest(nonce, [ethQuery]);
+      const serialized = request.serialize();
+      const digest = QueryRequest.digest(ENV, serialized);
+      const signature = sign(PRIVATE_KEY, digest);
+      const response = axios.put(
+        QUERY_URL,
+        {
+          signature,
+          bytes: Buffer.from(serialized).toString("hex"),
+        },
+        { headers: { "X-API-Key": "my_secret_key" } }
+      );
+      promises.push(response);
+    }
+
+    const responses = await Promise.all(promises);
+
+    expect(responses.length).toEqual(promises.length);
+    for (let idx = 0; idx < responses.length; idx++) {
+      const response = responses[idx];
+      expect(response.status).toBe(200);
+
+      const queryResponse = QueryResponse.from(response.data.bytes);
+      expect(queryResponse.version).toEqual(1);
+      expect(queryResponse.requestChainId).toEqual(0);
+      expect(queryResponse.request.version).toEqual(1);
+      expect(queryResponse.request.requests.length).toEqual(1);
+      expect(queryResponse.request.requests[0].chainId).toEqual(2);
+      expect(queryResponse.request.requests[0].query.type()).toEqual(
+        ChainQueryType.EthCall
+      );
+
+      const ecr = queryResponse.responses[0].response as EthCallQueryResponse;
+      expect(ecr.blockNumber.toString()).toEqual(
+        BigInt(blockNumber).toString()
+      );
+      expect(ecr.blockHash).toEqual(
+        (await web3.eth.getBlock(BigInt(blockNumber))).hash
+      );
+      expect(ecr.results.length).toEqual(2);
+      expect(ecr.results[0]).toEqual(
+        // Name
+        "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d5772617070656420457468657200000000000000000000000000000000000000"
+      );
+      expect(ecr.results[1]).toEqual(
+        // Decimals
+        "0x0000000000000000000000000000000000000000000000000000000000000012"
+      );
+    }
+  });
+  test("allow anything", async () => {
+    const nameCallData = createTestEthCallData(WETH_ADDRESS, "name", "string");
+    const decimalsCallData = createTestEthCallData(
+      WETH_ADDRESS,
+      "decimals",
+      "uint8"
+    );
+    const blockNumber = await web3.eth.getBlockNumber(ETH_DATA_FORMAT);
+    const ethCall = new EthCallQueryRequest(blockNumber, [
+      nameCallData,
+      decimalsCallData,
+    ]);
+    const chainId = 2;
+    const ethQuery = new PerChainQueryRequest(chainId, ethCall);
+    const nonce = 1;
+    const request = new QueryRequest(nonce, [ethQuery]);
+    const serialized = request.serialize();
+    const digest = QueryRequest.digest(ENV, serialized);
+    const signature = sign(PRIVATE_KEY, digest);
+    const response = await axios.put(
+      QUERY_URL,
+      {
+        signature,
+        bytes: Buffer.from(serialized).toString("hex"),
+      },
+      { headers: { "X-API-Key": "my_secret_key_3" } }
+    );
+    expect(response.status).toBe(200);
+
+    const queryResponse = QueryResponse.from(response.data.bytes);
+    expect(queryResponse.version).toEqual(1);
+    expect(queryResponse.requestChainId).toEqual(0);
+    expect(queryResponse.request.version).toEqual(1);
+    expect(queryResponse.request.requests.length).toEqual(1);
+    expect(queryResponse.request.requests[0].chainId).toEqual(2);
+    expect(queryResponse.request.requests[0].query.type()).toEqual(
+      ChainQueryType.EthCall
+    );
+
+    const ecr = queryResponse.responses[0].response as EthCallQueryResponse;
+    expect(ecr.blockNumber.toString()).toEqual(BigInt(blockNumber).toString());
+    expect(ecr.blockHash).toEqual(
+      (await web3.eth.getBlock(BigInt(blockNumber))).hash
+    );
+    expect(ecr.results.length).toEqual(2);
+    expect(ecr.results[0]).toEqual(
+      // Name
+      "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d5772617070656420457468657200000000000000000000000000000000000000"
+    );
+    expect(ecr.results[1]).toEqual(
+      // Decimals
+      "0x0000000000000000000000000000000000000000000000000000000000000012"
+    );
   });
 });

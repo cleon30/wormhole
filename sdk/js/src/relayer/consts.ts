@@ -1,9 +1,9 @@
-import { ChainId, Network, ChainName, CHAIN_ID_TO_NAME } from "../";
 import { ethers } from "ethers";
+import { ChainName, Network } from "../";
 import {
-  WormholeRelayer__factory,
   WormholeRelayer,
-} from "../ethers-contracts/";
+  WormholeRelayer__factory,
+} from "../ethers-relayer-contracts/";
 
 type AddressInfo = {
   wormholeRelayerAddress?: string;
@@ -57,16 +57,36 @@ const TESTNET: { [K in ChainName]?: AddressInfo } = {
     mockDeliveryProviderAddress: "0x60a86b97a7596eBFd25fb769053894ed0D9A8366",
     mockIntegrationAddress: "0x9Ee656203B0DC40cc1bA3f4738527779220e3998",
   },
+  sepolia: {
+    wormholeRelayerAddress: "0x7B1bD7a6b4E61c2a123AC6BC2cbfC614437D0470",
+    mockDeliveryProviderAddress: "0x7A0a53847776f7e94Cc35742971aCb2217b0Db81",
+    mockIntegrationAddress: "0x68b7Cd0d27a6F04b2F65e11DD06182EFb255c9f0",
+  },
+  arbitrum_sepolia: {
+    wormholeRelayerAddress: "0x7B1bD7a6b4E61c2a123AC6BC2cbfC614437D0470",
+    mockDeliveryProviderAddress: "0x7A0a53847776f7e94Cc35742971aCb2217b0Db81",
+    mockIntegrationAddress: "0x2B1502Ffe717817A0A101a687286bE294fe495f7",
+  },
+  optimism_sepolia: {
+    wormholeRelayerAddress: "0x93BAD53DDfB6132b0aC8E37f6029163E63372cEE",
+    mockDeliveryProviderAddress: "0x7A0a53847776f7e94Cc35742971aCb2217b0Db81",
+    mockIntegrationAddress: "0xA404B69582bac287a7455FFf315938CCd92099c1",
+  },
+  base_sepolia: {
+    wormholeRelayerAddress: "0x93BAD53DDfB6132b0aC8E37f6029163E63372cEE",
+    mockDeliveryProviderAddress: "0x7A0a53847776f7e94Cc35742971aCb2217b0Db81",
+    mockIntegrationAddress: "0xA404B69582bac287a7455FFf315938CCd92099c1",
+  },
 };
 
 const DEVNET: { [K in ChainName]?: AddressInfo } = {
   ethereum: {
-    wormholeRelayerAddress: "0xE66C1Bc1b369EF4F376b84373E3Aa004E8F4C083",
+    wormholeRelayerAddress: "0xb98F46E96cb1F519C333FdFB5CCe0B13E0300ED4",
     mockDeliveryProviderAddress: "0x1ef9e15c3bbf0555860b5009B51722027134d53a",
     mockIntegrationAddress: "0x0eb0dD3aa41bD15C706BC09bC03C002b7B85aeAC",
   },
   bsc: {
-    wormholeRelayerAddress: "0xE66C1Bc1b369EF4F376b84373E3Aa004E8F4C083",
+    wormholeRelayerAddress: "0xb98F46E96cb1F519C333FdFB5CCe0B13E0300ED4",
     mockDeliveryProviderAddress: "0x1ef9e15c3bbf0555860b5009B51722027134d53a",
     mockIntegrationAddress: "0x0eb0dD3aa41bD15C706BC09bC03C002b7B85aeAC",
   },
@@ -111,6 +131,12 @@ const MAINNET: { [K in ChainName]?: AddressInfo } = {
   },
   base: {
     wormholeRelayerAddress: "0x706f82e9bb5b0813501714ab5974216704980e31",
+  },
+  scroll: {
+    wormholeRelayerAddress: "0x27428DD2d3DD32A4D7f7C497eAaa23130d894911",
+  },
+  blast: {
+    wormholeRelayerAddress: "0x27428DD2d3DD32A4D7f7C497eAaa23130d894911",
   },
 };
 
@@ -208,6 +234,10 @@ export const RPCS_BY_CHAIN: {
     gnosis: "https://sokol.poa.network/",
     rootstock: "https://public-node.rsk.co",
     base: "https://goerli.base.org",
+    sepolia: "https://rpc.ankr.com/eth_sepolia",
+    arbitrum_sepolia: "https://sepolia-rollup.arbitrum.io/rpc",
+    optimism_sepolia: "https://sepolia.optimism.io",
+    base_sepolia: "https://sepolia.base.org",
   },
   DEVNET: {
     ethereum: "http://localhost:8545",
@@ -243,12 +273,16 @@ export const getWormscanAPI = (_network: Network) => {
 };
 
 export const getNameFromCCTPDomain = (
-  domain: number
+  domain: number,
+  environment: Network = "MAINNET"
 ): ChainName | undefined => {
-  if (domain === 0) return "ethereum";
-  else if (domain === 1) return "avalanche";
-  else if (domain === 2) return "optimism";
-  else if (domain === 3) return "arbitrum";
-  else if (domain === 6) return "base";
+  if (domain === 0) return environment === "MAINNET" ? "ethereum" : "sepolia";
+  else if (domain === 1) "avalanche";
+  else if (domain === 2)
+    return environment === "MAINNET" ? "optimism" : "optimism_sepolia";
+  else if (domain === 3)
+    return environment === "MAINNET" ? "arbitrum" : "arbitrum_sepolia";
+  else if (domain === 6)
+    return environment === "MAINNET" ? "base" : "base_sepolia";
   else return undefined;
 };

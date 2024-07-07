@@ -2,6 +2,7 @@ package spy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -33,6 +34,8 @@ var (
 )
 
 var (
+	envStr *string
+
 	p2pNetworkID *string
 	p2pPort      *uint
 	p2pBootstrap *string
@@ -46,12 +49,16 @@ var (
 	spyRPC *string
 
 	sendTimeout *time.Duration
+
+	ethRPC      *string
+	ethContract *string
 )
 
 func init() {
-	p2pNetworkID = SpyCmd.Flags().String("network", "/wormhole/dev", "P2P network identifier")
+	envStr = SpyCmd.Flags().String("env", "", `environment (may be "testnet" or "mainnet", required unless "--bootstrap" is specified)`)
+	p2pNetworkID = SpyCmd.Flags().String("network", "", "P2P network identifier (optional for testnet or mainnet, overrides default, required for devnet)")
 	p2pPort = SpyCmd.Flags().Uint("port", 8999, "P2P UDP listener port")
-	p2pBootstrap = SpyCmd.Flags().String("bootstrap", "", "P2P bootstrap peers (comma-separated)")
+	p2pBootstrap = SpyCmd.Flags().String("bootstrap", "", "P2P bootstrap peers (optional for testnet or mainnet, overrides default, required for devnet)")
 
 	statusAddr = SpyCmd.Flags().String("statusAddr", "[::]:6060", "Listen address for status server (disabled if blank)")
 
@@ -62,6 +69,9 @@ func init() {
 	spyRPC = SpyCmd.Flags().String("spyRPC", "", "Listen address for gRPC interface")
 
 	sendTimeout = SpyCmd.Flags().Duration("sendTimeout", 5*time.Second, "Timeout for sending a message to a subscriber")
+
+	ethRPC = SpyCmd.Flags().String("ethRPC", "", "Ethereum RPC for verifying VAAs (optional)")
+	ethContract = SpyCmd.Flags().String("ethContract", "", "Ethereum core bridge address for verifying VAAs (required if ethRPC is specified)")
 }
 
 // SpyCmd represents the node command
@@ -76,6 +86,7 @@ type spyServer struct {
 	logger          *zap.Logger
 	subsSignedVaa   map[string]*subscriptionSignedVaa
 	subsSignedVaaMu sync.Mutex
+	vaaVerifier     *VaaVerifier
 }
 
 type message struct {
@@ -100,15 +111,23 @@ func (s *spyServer) PublishSignedVAA(vaaBytes []byte) error {
 	defer s.subsSignedVaaMu.Unlock()
 
 	var v *vaa.VAA
+	var err error
+	verified := s.vaaVerifier == nil
 
 	for _, sub := range s.subsSignedVaa {
 		if len(sub.filters) == 0 {
+			if !verified {
+				verified = true
+				v, err = s.verifyVAA(v, vaaBytes)
+				if err != nil {
+					return err
+				}
+			}
 			sub.ch <- message{vaaBytes: vaaBytes}
 			continue
 		}
 
 		if v == nil {
-			var err error
 			v, err = vaa.Unmarshal(vaaBytes)
 			if err != nil {
 				return err
@@ -117,6 +136,13 @@ func (s *spyServer) PublishSignedVAA(vaaBytes []byte) error {
 
 		for _, fi := range sub.filters {
 			if fi.chainId == v.EmitterChain && fi.emitterAddr == v.EmitterAddress {
+				if !verified {
+					verified = true
+					v, err = s.verifyVAA(v, vaaBytes)
+					if err != nil {
+						return err
+					}
+				}
 				sub.ch <- message{vaaBytes: vaaBytes}
 			}
 		}
@@ -124,6 +150,31 @@ func (s *spyServer) PublishSignedVAA(vaaBytes []byte) error {
 	}
 
 	return nil
+}
+
+func (s *spyServer) verifyVAA(v *vaa.VAA, vaaBytes []byte) (*vaa.VAA, error) {
+	if s.vaaVerifier == nil {
+		panic("verifier is nil")
+	}
+
+	if v == nil {
+		var err error
+		v, err = vaa.Unmarshal(vaaBytes)
+		if err != nil {
+			return v, fmt.Errorf(`failed to unmarshal VAA: %w`, err)
+		}
+	}
+
+	valid, err := s.vaaVerifier.VerifySignatures(v)
+	if err != nil {
+		return v, fmt.Errorf(`failed to verify VAA: %w`, err)
+	}
+
+	if !valid {
+		return v, errors.New(`invalid VAA signature`)
+	}
+
+	return v, nil
 }
 
 func (s *spyServer) SubscribeSignedVAA(req *spyv1.SubscribeSignedVAARequest, resp spyv1.SpyRPCService_SubscribeSignedVAAServer) error {
@@ -237,6 +288,30 @@ func runSpy(cmd *cobra.Command, args []string) {
 
 	ipfslog.SetAllLoggers(lvl)
 
+	if *envStr != "" {
+		// If they specify --env then use the defaults for the network parameters and don't allow them to override them.
+		if *p2pNetworkID != "" || *p2pBootstrap != "" {
+			logger.Fatal(`If "--env" is specified, "--network" and "--bootstrap" may not be specified`)
+		}
+		env, err := common.ParseEnvironment(*envStr)
+		if err != nil || (env != common.MainNet && env != common.TestNet) {
+			logger.Fatal(`Invalid value for "--env", should be "mainnet" or "testnet"`)
+		}
+		*p2pNetworkID = p2p.GetNetworkId(env)
+		*p2pBootstrap, err = p2p.GetBootstrapPeers(env)
+		if err != nil {
+			logger.Fatal("failed to determine p2p bootstrap peers", zap.String("env", string(env)), zap.Error(err))
+		}
+	} else {
+		// If they don't specify --env, then --network and --bootstrap are required.
+		if *p2pNetworkID == "" {
+			logger.Fatal(`If "--env" is not specified, "--network" must be specified`)
+		}
+		if *p2pBootstrap == "" {
+			logger.Fatal(`If "--env" is not specified, "--bootstrap" must be specified`)
+		}
+	}
+
 	// Status server
 	if *statusAddr != "" {
 		router := mux.NewRouter()
@@ -262,15 +337,6 @@ func runSpy(cmd *cobra.Command, args []string) {
 	rootCtx, rootCtxCancel = context.WithCancel(context.Background())
 	defer rootCtxCancel()
 
-	// Outbound gossip message queue
-	sendC := make(chan []byte)
-
-	// Inbound observations
-	obsvC := make(chan *common.MsgWithTimeStamp[gossipv1.SignedObservation], 1024)
-
-	// Inbound observation requests
-	obsvReqC := make(chan *gossipv1.ObservationRequest, 1024)
-
 	// Inbound signed VAAs
 	signedInC := make(chan *gossipv1.SignedVAAWithQuorum, 1024)
 
@@ -284,28 +350,16 @@ func runSpy(cmd *cobra.Command, args []string) {
 		logger.Fatal("failed to start RPC server", zap.Error(err))
 	}
 
-	// Ignore observations
-	go func() {
-		for {
-			select {
-			case <-rootCtx.Done():
-				return
-			case <-obsvC:
-			}
+	// VAA verifier (optional)
+	if *ethRPC != "" {
+		if *ethContract == "" {
+			logger.Fatal(`If "--ethRPC" is specified, "--ethContract" must also be specified`)
 		}
-	}()
-
-	// Ignore observation requests
-	// Note: without this, the whole program hangs on observation requests
-	go func() {
-		for {
-			select {
-			case <-rootCtx.Done():
-				return
-			case <-obsvReqC:
-			}
+		s.vaaVerifier = NewVaaVerifier(logger, *ethRPC, *ethContract)
+		if err := s.vaaVerifier.GetInitialGuardianSet(); err != nil {
+			logger.Fatal(`Failed to read initial guardian set for VAA verification`, zap.Error(err))
 		}
-	}()
+	}
 
 	// Log signed VAAs
 	go func() {
@@ -317,7 +371,7 @@ func runSpy(cmd *cobra.Command, args []string) {
 				logger.Info("Received signed VAA",
 					zap.Any("vaa", v.Vaa))
 				if err := s.PublishSignedVAA(v.Vaa); err != nil {
-					logger.Error("failed to publish signed VAA", zap.Error(err))
+					logger.Error("failed to publish signed VAA", zap.Error(err), zap.Any("vaa", v.Vaa))
 				}
 			}
 		}
@@ -334,35 +388,21 @@ func runSpy(cmd *cobra.Command, args []string) {
 	supervisor.New(rootCtx, logger, func(ctx context.Context) error {
 		components := p2p.DefaultComponents()
 		components.Port = *p2pPort
+		params, err := p2p.NewRunParams(
+			*p2pBootstrap,
+			*p2pNetworkID,
+			priv,
+			gst,
+			rootCtxCancel,
+			p2p.WithSignedVAAListener(signedInC),
+		)
+		if err != nil {
+			return err
+		}
+
 		if err := supervisor.Run(ctx,
 			"p2p",
-			p2p.Run(obsvC,
-				obsvReqC,
-				nil,
-				sendC,
-				signedInC,
-				priv,
-				nil,
-				gst,
-				*p2pNetworkID,
-				*p2pBootstrap,
-				"",
-				false,
-				rootCtxCancel,
-				nil,
-				nil,
-				nil,
-				nil,
-				components,
-				nil,   // ibc feature string
-				false, // gateway relayer enabled
-				false, // ccqEnabled
-				nil,   // query requests
-				nil,   // query responses
-				"",    // query bootstrap peers
-				0,     // query port
-				"",    // query allow list
-			)); err != nil {
+			p2p.Run(params)); err != nil {
 			return err
 		}
 

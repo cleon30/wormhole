@@ -3,11 +3,11 @@ import { PublicKey } from "@solana/web3.js";
 export const LOCALHOST = "http://localhost:8899";
 
 export const CORE_BRIDGE_ADDRESS = new PublicKey(
-  //  "HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj"
+  //  "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o"
   "agnnozV7x6ffAhi8xVhBd5dShfLnuUKKPEMX1tJ1nDC"
 );
 export const TOKEN_BRIDGE_ADDRESS = new PublicKey(
-  //  "CiXCz22m2gQYe9NXzeAzruqZRUan5bYzRvMkVzBDQVJd"
+  //  "B6RHG3mfcckmrYN1UhmJzyS1XX3fZKbkeUcpJe9Sy3FE"
   "bPPNmBhmHfkEFJmNKKCvwc1tPqBjzPDRwCw3yQYYXQa"
 );
 export const NFT_BRIDGE_ADDRESS = new PublicKey(

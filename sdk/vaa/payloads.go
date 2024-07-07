@@ -3,9 +3,11 @@ package vaa
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"math"
 
-	"github.com/ethereum/go-ethereum/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
 )
 
@@ -55,6 +57,13 @@ var WormholeRelayerModule = [32]byte{
 }
 var WormholeRelayerModuleStr = string(WormholeRelayerModule[:])
 
+var GeneralPurposeGovernanceModule = [32]byte{
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47, 0x65, 0x6E, 0x65, 0x72, 0x61, 0x6C,
+	0x50, 0x75, 0x72, 0x70, 0x6F, 0x73, 0x65, 0x47, 0x6F, 0x76, 0x65, 0x72, 0x6E, 0x61, 0x6E,
+	0x63, 0x65,
+}
+var GeneralPurposeGovernanceModuleStr = string(GeneralPurposeGovernanceModule[:])
+
 type GovernanceAction uint8
 
 var (
@@ -78,7 +87,7 @@ var (
 	ActionCancelUpgrade                 GovernanceAction = 2
 	ActionSetIbcComposabilityMwContract GovernanceAction = 3
 
-	// Accountant goverance actions
+	// Accountant governance actions
 	ActionModifyBalance GovernanceAction = 1
 
 	// Wormhole tokenbridge governance actions
@@ -99,6 +108,10 @@ var (
 
 	// Wormhole relayer governance actions
 	WormholeRelayerSetDefaultDeliveryProvider GovernanceAction = 3
+
+	// General purpose governance
+	GeneralPurposeGovernanceEvmAction    GovernanceAction = 1
+	GeneralPurposeGovernanceSolanaAction GovernanceAction = 2
 )
 
 type (
@@ -110,7 +123,7 @@ type (
 
 	// BodyGuardianSetUpdate is a governance message to set a new guardian set
 	BodyGuardianSetUpdate struct {
-		Keys     []common.Address
+		Keys     []ethcommon.Address
 		NewIndex uint32
 	}
 
@@ -126,6 +139,13 @@ type (
 		Module        string
 		TargetChainID ChainID
 		NewContract   Address
+	}
+
+	// BodyRecoverChainId is a governance message to recover a chain id.
+	BodyRecoverChainId struct {
+		Module     string
+		EvmChainID *uint256.Int
+		NewChainID ChainID
 	}
 
 	// BodyTokenBridgeModifyBalance is a governance message to modify accountant balances for the tokenbridge.
@@ -209,9 +229,27 @@ type (
 		ChainID                           ChainID
 		NewDefaultDeliveryProviderAddress Address
 	}
+
+	// BodyGeneralPurposeGovernanceEvm is a general purpose governance message for EVM chains
+	BodyGeneralPurposeGovernanceEvm struct {
+		ChainID            ChainID
+		GovernanceContract ethcommon.Address
+		TargetContract     ethcommon.Address
+		Payload            []byte
+	}
+
+	// BodyGeneralPurposeGovernanceSolana is a general purpose governance message for Solana chains
+	BodyGeneralPurposeGovernanceSolana struct {
+		ChainID            ChainID
+		GovernanceContract Address
+		// NOTE: unlike in EVM, no target contract in the schema here, the
+		// instruction encodes the target contract address (unlike in EVM, where
+		// an abi encoded calldata doesn't include the target contract address)
+		Instruction []byte
+	}
 )
 
-func (b BodyContractUpgrade) Serialize() []byte {
+func (b BodyContractUpgrade) Serialize() ([]byte, error) {
 	buf := new(bytes.Buffer)
 
 	// Module
@@ -223,10 +261,10 @@ func (b BodyContractUpgrade) Serialize() []byte {
 
 	buf.Write(b.NewContract[:])
 
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }
 
-func (b BodyGuardianSetUpdate) Serialize() []byte {
+func (b BodyGuardianSetUpdate) Serialize() ([]byte, error) {
 	buf := new(bytes.Buffer)
 
 	// Module
@@ -242,10 +280,10 @@ func (b BodyGuardianSetUpdate) Serialize() []byte {
 		buf.Write(k[:])
 	}
 
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }
 
-func (r BodyTokenBridgeRegisterChain) Serialize() []byte {
+func (r BodyTokenBridgeRegisterChain) Serialize() ([]byte, error) {
 	payload := &bytes.Buffer{}
 	MustWrite(payload, binary.BigEndian, r.ChainID)
 	payload.Write(r.EmitterAddress[:])
@@ -253,11 +291,34 @@ func (r BodyTokenBridgeRegisterChain) Serialize() []byte {
 	return serializeBridgeGovernanceVaa(r.Module, ActionRegisterChain, 0, payload.Bytes())
 }
 
-func (r BodyTokenBridgeUpgradeContract) Serialize() []byte {
+func (r BodyTokenBridgeUpgradeContract) Serialize() ([]byte, error) {
 	return serializeBridgeGovernanceVaa(r.Module, ActionUpgradeTokenBridge, r.TargetChainID, r.NewContract[:])
 }
 
-func (r BodyAccountantModifyBalance) Serialize() []byte {
+func (r BodyRecoverChainId) Serialize() ([]byte, error) {
+	// Module
+	buf, err := LeftPadBytes(r.Module, 32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to left pad module: %w", err)
+	}
+	// Action
+	var action GovernanceAction
+	if r.Module == "Core" {
+		action = ActionCoreRecoverChainId
+	} else {
+		action = ActionTokenBridgeRecoverChainId
+	}
+	MustWrite(buf, binary.BigEndian, action)
+	// EvmChainID
+	MustWrite(buf, binary.BigEndian, r.EvmChainID.Bytes32())
+	// NewChainID
+	MustWrite(buf, binary.BigEndian, r.NewChainID)
+	return buf.Bytes(), nil
+}
+
+const AccountantModifyBalanceReasonLength = 32
+
+func (r BodyAccountantModifyBalance) Serialize() ([]byte, error) {
 	payload := &bytes.Buffer{}
 	MustWrite(payload, binary.BigEndian, r.Sequence)
 	MustWrite(payload, binary.BigEndian, r.ChainId)
@@ -268,7 +329,7 @@ func (r BodyAccountantModifyBalance) Serialize() []byte {
 	amount_bytes := r.Amount.Bytes32()
 	payload.Write(amount_bytes[:])
 
-	reason := make([]byte, 32)
+	reason := make([]byte, AccountantModifyBalanceReasonLength)
 
 	// truncate or pad "reason"
 	count := copy(reason, r.Reason)
@@ -280,28 +341,28 @@ func (r BodyAccountantModifyBalance) Serialize() []byte {
 	return serializeBridgeGovernanceVaa(r.Module, ActionModifyBalance, r.TargetChainID, payload.Bytes())
 }
 
-func (r BodyWormchainStoreCode) Serialize() []byte {
+func (r BodyWormchainStoreCode) Serialize() ([]byte, error) {
 	return serializeBridgeGovernanceVaa(WasmdModuleStr, ActionStoreCode, ChainIDWormchain, r.WasmHash[:])
 }
 
-func (r BodyWormchainInstantiateContract) Serialize() []byte {
+func (r BodyWormchainInstantiateContract) Serialize() ([]byte, error) {
 	return serializeBridgeGovernanceVaa(WasmdModuleStr, ActionInstantiateContract, ChainIDWormchain, r.InstantiationParamsHash[:])
 }
 
-func (r BodyWormchainMigrateContract) Serialize() []byte {
+func (r BodyWormchainMigrateContract) Serialize() ([]byte, error) {
 	return serializeBridgeGovernanceVaa(WasmdModuleStr, ActionMigrateContract, ChainIDWormchain, r.MigrationParamsHash[:])
 }
 
-func (r BodyWormchainWasmAllowlistInstantiate) Serialize(action GovernanceAction) []byte {
+func (r BodyWormchainWasmAllowlistInstantiate) Serialize(action GovernanceAction) ([]byte, error) {
 	payload := &bytes.Buffer{}
 	payload.Write(r.ContractAddr[:])
 	MustWrite(payload, binary.BigEndian, r.CodeId)
 	return serializeBridgeGovernanceVaa(WasmdModuleStr, action, ChainIDWormchain, payload.Bytes())
 }
 
-func (r *BodyWormchainWasmAllowlistInstantiate) Deserialize(bz []byte) {
+func (r *BodyWormchainWasmAllowlistInstantiate) Deserialize(bz []byte) error {
 	if len(bz) != 40 {
-		panic("incorrect payload length")
+		return fmt.Errorf("incorrect payload length, should be 40, is %d", len(bz))
 	}
 
 	var contractAddr [32]byte
@@ -311,42 +372,45 @@ func (r *BodyWormchainWasmAllowlistInstantiate) Deserialize(bz []byte) {
 
 	r.ContractAddr = contractAddr
 	r.CodeId = codeId
+	return nil
 }
 
-func (r BodyGatewayIbcComposabilityMwContract) Serialize() []byte {
+func (r BodyGatewayIbcComposabilityMwContract) Serialize() ([]byte, error) {
 	payload := &bytes.Buffer{}
 	payload.Write(r.ContractAddr[:])
 	return serializeBridgeGovernanceVaa(GatewayModuleStr, ActionSetIbcComposabilityMwContract, ChainIDWormchain, payload.Bytes())
 }
 
-func (r *BodyGatewayIbcComposabilityMwContract) Deserialize(bz []byte) {
+func (r *BodyGatewayIbcComposabilityMwContract) Deserialize(bz []byte) error {
 	if len(bz) != 32 {
-		panic("incorrect payload length")
+		return fmt.Errorf("incorrect payload length, should be 32, is %d", len(bz))
 	}
 
 	var contractAddr [32]byte
 	copy(contractAddr[:], bz[0:32])
 
 	r.ContractAddr = contractAddr
+	return nil
 }
 
-func (r BodyGatewayScheduleUpgrade) Serialize() []byte {
+func (r BodyGatewayScheduleUpgrade) Serialize() ([]byte, error) {
 	payload := &bytes.Buffer{}
 	payload.Write([]byte(r.Name))
 	MustWrite(payload, binary.BigEndian, r.Height)
 	return serializeBridgeGovernanceVaa(GatewayModuleStr, ActionScheduleUpgrade, ChainIDWormchain, payload.Bytes())
 }
 
-func (r *BodyGatewayScheduleUpgrade) Deserialize(bz []byte) {
+func (r *BodyGatewayScheduleUpgrade) Deserialize(bz []byte) error {
 	r.Name = string(bz[0 : len(bz)-8])
 	r.Height = binary.BigEndian.Uint64(bz[len(bz)-8:])
+	return nil
 }
 
-func (r BodyCircleIntegrationUpdateWormholeFinality) Serialize() []byte {
+func (r BodyCircleIntegrationUpdateWormholeFinality) Serialize() ([]byte, error) {
 	return serializeBridgeGovernanceVaa(CircleIntegrationModuleStr, CircleIntegrationActionUpdateWormholeFinality, r.TargetChainID, []byte{r.Finality})
 }
 
-func (r BodyCircleIntegrationRegisterEmitterAndDomain) Serialize() []byte {
+func (r BodyCircleIntegrationRegisterEmitterAndDomain) Serialize() ([]byte, error) {
 	payload := &bytes.Buffer{}
 	MustWrite(payload, binary.BigEndian, r.ForeignEmitterChainId)
 	payload.Write(r.ForeignEmitterAddress[:])
@@ -354,15 +418,15 @@ func (r BodyCircleIntegrationRegisterEmitterAndDomain) Serialize() []byte {
 	return serializeBridgeGovernanceVaa(CircleIntegrationModuleStr, CircleIntegrationActionRegisterEmitterAndDomain, r.TargetChainID, payload.Bytes())
 }
 
-func (r BodyCircleIntegrationUpgradeContractImplementation) Serialize() []byte {
+func (r BodyCircleIntegrationUpgradeContractImplementation) Serialize() ([]byte, error) {
 	payload := &bytes.Buffer{}
 	payload.Write(r.NewImplementationAddress[:])
 	return serializeBridgeGovernanceVaa(CircleIntegrationModuleStr, CircleIntegrationActionUpgradeContractImplementation, r.TargetChainID, payload.Bytes())
 }
 
-func (r BodyIbcUpdateChannelChain) Serialize(module string) []byte {
+func (r BodyIbcUpdateChannelChain) Serialize(module string) ([]byte, error) {
 	if module != IbcReceiverModuleStr && module != IbcTranslatorModuleStr {
-		panic("module for BodyIbcUpdateChannelChain must be either IbcReceiver or IbcTranslator")
+		return nil, errors.New("module for BodyIbcUpdateChannelChain must be either IbcReceiver or IbcTranslator")
 	}
 
 	payload := &bytes.Buffer{}
@@ -371,18 +435,46 @@ func (r BodyIbcUpdateChannelChain) Serialize(module string) []byte {
 	return serializeBridgeGovernanceVaa(module, IbcReceiverActionUpdateChannelChain, r.TargetChainId, payload.Bytes())
 }
 
-func (r BodyWormholeRelayerSetDefaultDeliveryProvider) Serialize() []byte {
+func (r BodyWormholeRelayerSetDefaultDeliveryProvider) Serialize() ([]byte, error) {
 	payload := &bytes.Buffer{}
 	payload.Write(r.NewDefaultDeliveryProviderAddress[:])
 	return serializeBridgeGovernanceVaa(WormholeRelayerModuleStr, WormholeRelayerSetDefaultDeliveryProvider, r.ChainID, payload.Bytes())
 }
 
-func EmptyPayloadVaa(module string, actionId GovernanceAction, chainId ChainID) []byte {
+func (r BodyGeneralPurposeGovernanceEvm) Serialize() ([]byte, error) {
+	payload := &bytes.Buffer{}
+	payload.Write(r.GovernanceContract[:])
+	payload.Write(r.TargetContract[:])
+
+	// write payload len as uint16
+	if len(r.Payload) > math.MaxUint16 {
+		return nil, fmt.Errorf("payload too long; expected at most %d bytes", math.MaxUint16)
+	}
+	MustWrite(payload, binary.BigEndian, uint16(len(r.Payload)))
+	payload.Write(r.Payload)
+	return serializeBridgeGovernanceVaa(GeneralPurposeGovernanceModuleStr, GeneralPurposeGovernanceEvmAction, r.ChainID, payload.Bytes())
+}
+
+func (r BodyGeneralPurposeGovernanceSolana) Serialize() ([]byte, error) {
+	payload := &bytes.Buffer{}
+	payload.Write(r.GovernanceContract[:])
+	// NOTE: unlike in EVM, we don't write the payload length here, because we're using
+	// a custom instruction encoding (there is no standard encoding like evm ABI
+	// encoding), generated by an external tool. That tool length-prefixes all
+	// the relevant dynamic fields.
+	payload.Write(r.Instruction)
+	return serializeBridgeGovernanceVaa(GeneralPurposeGovernanceModuleStr, GeneralPurposeGovernanceSolanaAction, r.ChainID, payload.Bytes())
+}
+
+func EmptyPayloadVaa(module string, actionId GovernanceAction, chainId ChainID) ([]byte, error) {
 	return serializeBridgeGovernanceVaa(module, actionId, chainId, []byte{})
 }
 
-func serializeBridgeGovernanceVaa(module string, actionId GovernanceAction, chainId ChainID, payload []byte) []byte {
-	buf := LeftPadBytes(module, 32)
+func serializeBridgeGovernanceVaa(module string, actionId GovernanceAction, chainId ChainID, payload []byte) ([]byte, error) {
+	buf, err := LeftPadBytes(module, 32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to left pad module: %w", err)
+	}
 	// Write action ID
 	MustWrite(buf, binary.BigEndian, actionId)
 	// Write target chain
@@ -390,24 +482,27 @@ func serializeBridgeGovernanceVaa(module string, actionId GovernanceAction, chai
 	// Write emitter address of chain to be registered
 	buf.Write(payload[:])
 
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }
 
-func LeftPadIbcChannelId(channelId string) [64]byte {
-	channelIdBuf := LeftPadBytes(channelId, 64)
+func LeftPadIbcChannelId(channelId string) ([64]byte, error) {
+	channelIdBuf, err := LeftPadBytes(channelId, 64)
+	if err != nil {
+		return [64]byte{}, fmt.Errorf("failed to left pad module: %w", err)
+	}
 	var channelIdIdLeftPadded [64]byte
 	copy(channelIdIdLeftPadded[:], channelIdBuf.Bytes())
-	return channelIdIdLeftPadded
+	return channelIdIdLeftPadded, nil
 }
 
 // Prepends 0x00 bytes to the payload buffer, up to a size of `length`
-func LeftPadBytes(payload string, length int) *bytes.Buffer {
+func LeftPadBytes(payload string, length int) (*bytes.Buffer, error) {
 	if length < 0 {
-		panic("cannot prepend bytes to a negative length buffer")
+		return nil, errors.New("cannot prepend bytes to a negative length buffer")
 	}
 
 	if len(payload) > length {
-		panic(fmt.Sprintf("payload longer than %d bytes", length))
+		return nil, fmt.Errorf(fmt.Sprintf("payload longer than %d bytes", length))
 	}
 
 	buf := &bytes.Buffer{}
@@ -420,5 +515,5 @@ func LeftPadBytes(payload string, length int) *bytes.Buffer {
 	// add the payload slice
 	buf.Write([]byte(payload))
 
-	return buf
+	return buf, nil
 }

@@ -22,6 +22,15 @@
         },
         {
           "ethCall": {
+            "note:": "Decimals of WETH on Goerli",
+            "chain": 2,
+            "contractAddress": "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6",
+            "call": "0x313ce567"
+          }
+        },
+
+        {
+          "ethCall": {
             "note:": "Name of WETH on Devnet",
             "chain": 2,
             "contractAddress": "0xDDb64fE46a91D46ee29420539FC25FD07c5FEa3E",
@@ -37,6 +46,14 @@
           }
         },
         {
+          "ethCall": {
+            "note:": "Decimals of WETH on Devnet",
+            "chain": 2,
+            "contractAddress": "0xDDb64fE46a91D46ee29420539FC25FD07c5FEa3E",
+            "call": "0x313ce567"
+          }
+        },
+        {
           "ethCallByTimestamp": {
             "note:": "Name of WETH on Goerli",
             "chain": 2,
@@ -69,6 +86,14 @@
           }
         },
         {
+          "ethCallByTimestamp": {
+            "note:": "Decimals of WETH on Devnet",
+            "chain": 2,
+            "contractAddress": "0xDDb64fE46a91D46ee29420539FC25FD07c5FEa3E",
+            "call": "0x313ce567"
+          }
+        },
+        {
           "ethCallWithFinality": {
             "note:": "Name of WETH on Goerli",
             "chain": 2,
@@ -98,6 +123,35 @@
             "chain": 2,
             "contractAddress": "0xDDb64fE46a91D46ee29420539FC25FD07c5FEa3E",
             "call": "0x18160ddd"
+          }
+        },
+        {
+          "ethCallWithFinality": {
+            "note:": "Decimals of WETH on Devnet",
+            "chain": 2,
+            "contractAddress": "0xDDb64fE46a91D46ee29420539FC25FD07c5FEa3E",
+            "call": "0x313ce567"
+          }
+        },
+        {
+          "solAccount": {
+            "note:": "Example token on Devnet",
+            "chain": 1,
+            "account": "2WDq7wSs9zYrpx2kbHDA4RUTRch2CCTP6ZWaH4GNfnQQ"
+          }
+        },
+        {
+          "solAccount": {
+            "note:": "Example NFT on Devnet",
+            "chain": 1,
+            "account": "BVxyYhm498L79r4HMQ9sxZ5bi41DmJmeWZ7SCS7Cyvna"
+          }
+        },
+        {
+          "solPDA": {
+            "note:": "Core Bridge on Devnet",
+            "chain": 1,
+            "programAddress": "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o"
           }
         }
       ]
@@ -124,6 +178,12 @@
           }
         }
       ]
+    },
+    {
+      "userName": "Unlimited User",
+      "apiKey": "my_secret_key_3",
+      "allowUnsigned": true,
+      "allowAnything": true
     }
   ]
 }

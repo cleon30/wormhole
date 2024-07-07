@@ -173,7 +173,7 @@ async function executeSubmit(
   } else if (chain === "xpla") {
     await execute_xpla(parsedVaa.payload, buf, network);
   } else if (chain === "sei") {
-    await submitSei(parsedVaa.payload, buf, network);
+    await submitSei(parsedVaa.payload, buf, network, rpc);
   } else if (chain === "osmosis") {
     throw Error("OSMOSIS is not supported yet");
   } else if (chain === "sui") {
@@ -190,6 +190,18 @@ async function executeSubmit(
     throw Error("Evmos is not supported yet");
   } else if (chain === "kujira") {
     throw Error("kujira is not supported yet");
+  } else if (chain === "neutron") {
+    throw Error("neutron is not supported yet");
+  } else if (chain === "celestia") {
+    throw Error("celestia is not supported yet");
+  } else if (chain === "stargaze") {
+    throw Error("stargaze is not supported yet");
+  } else if (chain === "seda") {
+    throw Error("seda is not supported yet");
+  } else if (chain === "dymension") {
+    throw Error("dymension is not supported yet");
+  } else if (chain === "provenance") {
+    throw Error("provenance is not supported yet");
   } else if (chain === "rootstock") {
     throw Error("rootstock is not supported yet");
   } else {

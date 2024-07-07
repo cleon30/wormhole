@@ -39,7 +39,7 @@ type GuardianOption struct {
 
 // GuardianOptionP2P configures p2p networking.
 // Dependencies: Accountant, Governor
-func GuardianOptionP2P(p2pKey libp2p_crypto.PrivKey, networkId string, bootstrapPeers string, nodeName string, disableHeartbeatVerify bool, port uint, ccqBootstrapPeers string, ccqPort uint, ccqAllowedPeers string, ibcFeaturesFunc func() string) *GuardianOption {
+func GuardianOptionP2P(p2pKey libp2p_crypto.PrivKey, networkId, bootstrapPeers, nodeName string, disableHeartbeatVerify bool, port uint, ccqBootstrapPeers string, ccqPort uint, ccqAllowedPeers, gossipAdvertiseAddress string, ibcFeaturesFunc func() string) *GuardianOption {
 	return &GuardianOption{
 		name:         "p2p",
 		dependencies: []string{"accountant", "governor", "gateway-relayer"},
@@ -52,33 +52,42 @@ func GuardianOptionP2P(p2pKey libp2p_crypto.PrivKey, networkId string, bootstrap
 				components.SignedHeartbeatLogLevel = zapcore.InfoLevel
 			}
 
-			g.runnables["p2p"] = p2p.Run(
-				g.obsvC,
-				g.obsvReqC.writeC,
-				g.obsvReqSendC.readC,
-				g.gossipSendC,
-				g.signedInC.writeC,
-				p2pKey,
-				g.gk,
-				g.gst,
-				networkId,
+			// Add the gossip advertisement address
+			components.GossipAdvertiseAddress = gossipAdvertiseAddress
+
+			params, err := p2p.NewRunParams(
 				bootstrapPeers,
-				nodeName,
-				disableHeartbeatVerify,
+				networkId,
+				p2pKey,
+				g.gst,
 				g.rootCtxCancel,
-				g.acct,
-				g.gov,
-				nil,
-				nil,
-				components,
-				ibcFeaturesFunc,
-				(g.gatewayRelayer != nil),
-				(g.queryHandler != nil),
-				g.signedQueryReqC.writeC,
-				g.queryResponsePublicationC.readC,
-				ccqBootstrapPeers,
-				ccqPort,
-				ccqAllowedPeers,
+				p2p.WithGuardianOptions(
+					nodeName,
+					g.gk,
+					g.obsvC,
+					g.signedInC.writeC,
+					g.obsvReqC.writeC,
+					g.gossipSendC,
+					g.obsvReqSendC.readC,
+					g.acct,
+					g.gov,
+					disableHeartbeatVerify,
+					components,
+					ibcFeaturesFunc,
+					(g.gatewayRelayer != nil), // gatewayRelayerEnabled,
+					(g.queryHandler != nil),   // ccqEnabled,
+					g.signedQueryReqC.writeC,
+					g.queryResponsePublicationC.readC,
+					ccqBootstrapPeers,
+					ccqPort,
+					ccqAllowedPeers),
+			)
+			if err != nil {
+				return err
+			}
+
+			g.runnables["p2p"] = p2p.Run(
+				params,
 			)
 
 			return nil
@@ -115,14 +124,21 @@ func GuardianOptionNoAccountant() *GuardianOption {
 	return &GuardianOption{
 		name: "accountant",
 		f: func(ctx context.Context, logger *zap.Logger, g *G) error {
-			logger.Info("acct: accountant is disabled", zap.String("component", "gacct"))
+			logger.Info("accountant is disabled", zap.String("component", "gacct"))
 			return nil
 		}}
 }
 
 // GuardianOptionAccountant configures the Accountant module.
 // Dependencies: db
-func GuardianOptionAccountant(contract string, websocket string, enforcing bool, wormchainConn *wormconn.ClientConn) *GuardianOption {
+func GuardianOptionAccountant(
+	websocket string,
+	contract string,
+	enforcing bool,
+	wormchainConn *wormconn.ClientConn,
+	nttContract string,
+	nttWormchainConn *wormconn.ClientConn,
+) *GuardianOption {
 	return &GuardianOption{
 		name:         "accountant",
 		dependencies: []string{"db"},
@@ -131,21 +147,29 @@ func GuardianOptionAccountant(contract string, websocket string, enforcing bool,
 			// will be passed to it for processing. It will forward all token bridge transfers to the accountant contract.
 			// If accountantCheckEnabled is set to true, token bridge transfers will not be signed and published until they
 			// are approved by the accountant smart contract.
-			if contract == "" {
-				logger.Info("acct: accountant is disabled", zap.String("component", "gacct"))
+			if contract == "" && nttContract == "" {
+				logger.Info("accountant is disabled", zap.String("component", "gacct"))
 				return nil
 			}
 
 			if websocket == "" {
-				return errors.New("acct: if accountantContract is specified, accountantWS is required")
+				return errors.New("if either accountantContract or accountantNttContract is specified, accountantWS is required")
 			}
-			if wormchainConn == nil {
-				return errors.New("acct: if accountantContract is specified, the wormchain sending connection must be enabled before.")
+			if contract != "" {
+				if wormchainConn == nil {
+					return errors.New("if accountantContract is specified, the wormchain sending connection must be enabled before")
+				}
+				if enforcing {
+					logger.Info("accountant is enabled and will be enforced", zap.String("component", "gacct"))
+				} else {
+					logger.Info("accountant is enabled but will not be enforced", zap.String("component", "gacct"))
+				}
 			}
-			if enforcing {
-				logger.Info("acct: accountant is enabled and will be enforced", zap.String("component", "gacct"))
-			} else {
-				logger.Info("acct: accountant is enabled but will not be enforced", zap.String("component", "gacct"))
+			if nttContract != "" {
+				if nttWormchainConn == nil {
+					return errors.New("if accountantNttContract is specified, the NTT wormchain sending connection must be enabled")
+				}
+				logger.Info("NTT accountant is enabled", zap.String("component", "gacct"))
 			}
 
 			g.acct = accountant.NewAccountant(
@@ -157,6 +181,8 @@ func GuardianOptionAccountant(contract string, websocket string, enforcing bool,
 				websocket,
 				wormchainConn,
 				enforcing,
+				nttContract,
+				nttWormchainConn,
 				g.gk,
 				g.gst,
 				g.acctC.writeC,
@@ -338,7 +364,7 @@ func GuardianOptionWatchers(watcherConfigs []watchers.WatcherConfig, ibcWatcherC
 			// aggregate per-chain msgC into msgC.
 			// SECURITY defense-in-depth: This way we enforce that a watcher must set the msg.EmitterChain to its chainId, which makes the code easier to audit
 			for _, chainId := range vaa.GetAllNetworkIDs() {
-				chainQueryResponseC[chainId] = make(chan *query.PerChainQueryResponseInternal)
+				chainQueryResponseC[chainId] = make(chan *query.PerChainQueryResponseInternal, query.QueryResponseBufferSize)
 				go func(c <-chan *query.PerChainQueryResponseInternal, chainId vaa.ChainID) {
 					for {
 						select {
@@ -365,15 +391,14 @@ func GuardianOptionWatchers(watcherConfigs []watchers.WatcherConfig, ibcWatcherC
 					return fmt.Errorf("NetworkID already configured: %s", string(wc.GetNetworkID()))
 				}
 
-				watcherName := string(wc.GetNetworkID()) + "watch"
+				watcherName := string(wc.GetNetworkID()) + "_watch"
 				logger.Debug("Setting up watcher: " + watcherName)
 
 				if wc.GetNetworkID() != "solana-confirmed" { // TODO this should not be a special case, see comment in common/readiness.go
 					common.MustRegisterReadinessSyncing(wc.GetChainID())
+					chainObsvReqC[wc.GetChainID()] = make(chan *gossipv1.ObservationRequest, observationRequestPerChainBufferSize)
+					g.chainQueryReqC[wc.GetChainID()] = make(chan *query.PerChainQueryInternal, query.QueryRequestBufferSize)
 				}
-
-				chainObsvReqC[wc.GetChainID()] = make(chan *gossipv1.ObservationRequest, observationRequestPerChainBufferSize)
-				g.chainQueryReqC[wc.GetChainID()] = make(chan *query.PerChainQueryInternal, query.QueryRequestBufferSize)
 
 				if wc.RequiredL1Finalizer() != "" {
 					l1watcher, ok := watchers[wc.RequiredL1Finalizer()]

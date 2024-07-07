@@ -1,5 +1,6 @@
 ## Addresses
 
+<!--  spell-checker: disable -->
 | Label              |  Network  |                                                                                               Address | Note                                                                                                                                                                |
 | ------------------ | :-------: | ----------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Test Wallet        |    ETH    |                                                            0x90F8bf6A479f320ead074411a4B0e7944Ea8c9C1 | Key: `0x4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d` Mnemonic `myth like bonus scare over problem client lizard pioneer submit female collect` |
@@ -16,21 +17,20 @@
 | Example NFT        |    SOL    |                                                          BVxyYhm498L79r4HMQ9sxZ5bi41DmJmeWZ7SCS7Cyvna | One minted to Test Wallet                                                                                                                                           |
 | Example NFT 2      |    SOL    |                                                           nftMANh29jbMboVnbYt1AUAWFP9N4Jnckr9Zeq85WUs | One minted to Test Wallet                                                                                                                                           |
 | Example NFT 3      |    SOL    |                                                          AQJc65JzbzsT88JnGEXSqZaF8NFAXPo21fX4QUED4uRX | One minted to Test Wallet 2                                                                                                                                         |
-| Bridge Core        |    SOL    |                                                           HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj |                                                                                                                                                                     |
-| Token Bridge       |    SOL    |                                                          CiXCz22m2gQYe9NXzeAzruqZRUan5bYzRvMkVzBDQVJd |                                                                                                                                                                     |
+| Bridge Core        |    SOL    |                                                           Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o |                                                                                                                                                                     |
+| Token Bridge       |    SOL    |                                                          B6RHG3mfcckmrYN1UhmJzyS1XX3fZKbkeUcpJe9Sy3FE |                                                                                                                                                                     |
 | NFT Bridge         |    SOL    |                                                           NFTWqJR8YnRVqPDvTJrYuLrQDitTG5AScqbeghi4zSA |                                                                                                                                                                     |
 | Migration Contract |    SOL    |                                                          Ex9bCdVMSfx7EzB3pgSi2R4UHwJAXvTw18rBQm5YQ8gK |                                                                                                                                                                     |
 | Test Wallet        |   Terra   |                                                          terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v | Mnemonic: `notice oak worry limit wrap speak medal online prefer cluster roof addict wrist behave treat actual wasp year salad speed social layer crew genius`      |
-| Test CW20          |   Terra   |                                                          terra13nkgqrfymug724h8pprpexqj9h629sa3ncw7sh | Tokens minted to Test Wallet                                                                                                                                        |
-| Test CW721         |   Terra   |                                                          terra18dt935pdcn2ka6l0syy5gt20wa48n3mktvdvjj | NFTs minted to Test Wallet                                                                                                                                          |
-| Bridge Core        |   Terra   |                                                          terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5 |                                                                                                                                                                     |
-| Token Bridge       |   Terra   |                                                          terra10pyejy66429refv3g35g2t7am0was7ya7kz2a4 |                                                                                                                                                                     |
-| NFT Bridge         |   Terra   |                                                          terra1plju286nnfj3z54wgcggd4enwaa9fgf5kgrgzl |                                                                                                                                                                     |
+| Test CW20          |   Terra   |                                      terra1zwv6feuzhy6a9wekh96cd57lsarmqlwxdypdsplw6zhfncqw6ftqynf7kp | Tokens minted to Test Wallet                                                                                                                                        |
+| Bridge Core        |   Terra   |                                      terra14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9ssrc8au |                                                                                                                                                                     |
+| Token Bridge       |   Terra   |                                      terra1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrquka9l6 |                                                                                                                                                                     |
 | Test Wallet        |  Terra2   |                                                          terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v | Mnemonic: `notice oak worry limit wrap speak medal online prefer cluster roof addict wrist behave treat actual wasp year salad speed social layer crew genius`      |
 | Test CW20          |  Terra2   |                                      terra1zwv6feuzhy6a9wekh96cd57lsarmqlwxdypdsplw6zhfncqw6ftqynf7kp | Tokens minted to Test Wallet                                                                                                                                        |
 | Bridge Core        |  Terra2   |                                      terra14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9ssrc8au |                                                                                                                                                                     |
 | Token Bridge       |  Terra2   |                                      terra1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrquka9l6 |                                                                                                                                                                     |
 | Governance Emitter | Universal | 0x0000000000000000000000000000000000000000000000000000000000000004 / 11111111111111111111111111111115 | Emitter Chain: 0x01                                                                                                                                                 |
+<!--  spell-checker: enable -->
 
 ### Terra
 
@@ -40,19 +40,19 @@ The terra testnet can be used just like a normal localterra network (can be sele
 
 The `admin.py` deployment tool can be used to generate a set of five prefunded accounts using the `--fundDevAccounts` option, with the following addresses and mnemonics:
 
-DEV7AREMQSPWWDDFFJ3A5OIMMDCZN4YT5U2MQBN76Y4J5ERQQ3MWPIHUYA 800M ALGO
+DEV7AREMQSPWWDDFFJ3A5OIMMDCZN4YT5U2MQBN76Y4J5ERQQ3MWPIHUYA 800M ALGO <!-- cspell:disable-line -->
 provide warfare better filter glory civil help jacket alpha penalty van fiber code upgrade web more curve sauce merit bike satoshi blame orphan absorb modify
 
-DEVBE5BIDJV6SWV7E3XPLB5DXZG2JYCWHGXBAQH6WNBZA3G7SQQ5HUJQII
+DEVBE5BIDJV6SWV7E3XPLB5DXZG2JYCWHGXBAQH6WNBZA3G7SQQ5HUJQII <!-- cspell:disable-line -->
 album neglect very nasty input trick annual arctic spray task candy unfold letter drill glove sword flock omit dial rather session mesh slow abandon slab
 
-DEV3AURNEWR5TRFXIOBP2VTCTZIS52Q3XJHNJ57M4IZLMNZ5ABQ6M7AL6E
+DEV3AURNEWR5TRFXIOBP2VTCTZIS52Q3XJHNJ57M4IZLMNZ5ABQ6M7AL6E <!-- cspell:disable-line -->
 blue spring teach silent cheap grace desk crack agree leave tray lady chair reopen midnight lottery glove congress lounge arrow fine junior mirror above purchase
 
-DEVKKFRWGS4EX2GP5PLMFOXAH5TBBSWFD6G2D564FHVDXH55QSPXJKAHIU
+DEVKKFRWGS4EX2GP5PLMFOXAH5TBBSWFD6G2D564FHVDXH55QSPXJKAHIU <!-- cspell:disable-line -->
 front rifle urge write push dynamic oil vital section blast protect suffer shoulder base address teach sight trap trial august mechanic border leaf absorb attract
 
-DEVKPY5JA6IJED3KBS7Z6J2ZXAUVWIJLABNAYVVLOXXIVSBH32FA2Z4BWY
+DEVKPY5JA6IJED3KBS7Z6J2ZXAUVWIJLABNAYVVLOXXIVSBH32FA2Z4BWY <!-- cspell:disable-line -->
 fat pet option agree father glue range ancient curtain pottery search raven club save crane sting gift seven butter decline image toward kidney above balance
 
 ### devnet guardian addresses

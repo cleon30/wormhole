@@ -11,7 +11,7 @@ import { clusterApiUrl } from "@solana/web3.js";
 import { ethers } from "ethers";
 import { getAddress } from "ethers/lib/utils";
 
-//Devnet here means the locahost kubernetes environment used by the wormhole-foundation/wormhole official git repository.
+//Devnet here means the localhost kubernetes environment used by the wormhole-foundation/wormhole official git repository.
 //Testnet is the official Wormhole testnet
 export type Environment = "devnet" | "testnet" | "mainnet";
 export const CLUSTER: Environment = "devnet" as Environment; //This is the currently selected environment.
@@ -110,7 +110,7 @@ export const SOL_BRIDGE_ADDRESS =
     ? "worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth"
     : CLUSTER === "testnet"
     ? "Brdguy7BmNB4qwEbcqqMbyV5CyJd2sxQNUn6NEpMSsUb"
-    : "HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj";
+    : "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o";
 export const SOL_NFT_BRIDGE_ADDRESS =
   CLUSTER === "mainnet"
     ? "WnFt12ZrnzZrFZkt2xsNsaNWoQribnuQ5B5FrDbwDhD"
@@ -122,19 +122,19 @@ export const SOL_TOKEN_BRIDGE_ADDRESS =
     ? "wormDTUJ6AWPNvk59vGQbDvGJmqbDTdgWgAqcLBCgUb"
     : CLUSTER === "testnet"
     ? "A4Us8EhCC76XdGAN17L4KpRNEK423nMivVHZzZqFqqBg"
-    : "CiXCz22m2gQYe9NXzeAzruqZRUan5bYzRvMkVzBDQVJd";
+    : "B6RHG3mfcckmrYN1UhmJzyS1XX3fZKbkeUcpJe9Sy3FE";
 export const TERRA_BRIDGE_ADDRESS =
   CLUSTER === "mainnet"
     ? "terra1dq03ugtd40zu9hcgdzrsq6z2z4hwhc9tqk2uy5"
     : CLUSTER === "testnet"
-    ? "terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5"
-    : "terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5";
+    ? "terra14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9ssrc8au"
+    : "terra14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9ssrc8au";
 export const TERRA_TOKEN_BRIDGE_ADDRESS =
   CLUSTER === "mainnet"
     ? "terra10nmmwe8r3g99a9newtqa7a75xfgs2e8z87r2sf"
     : CLUSTER === "testnet"
-    ? "terra10pyejy66429refv3g35g2t7am0was7ya7kz2a4"
-    : "terra10pyejy66429refv3g35g2t7am0was7ya7kz2a4";
+    ? "terra1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrquka9l6"
+    : "terra1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrquka9l6";
 
 export const getBridgeAddressForChain = (chainId: ChainId) =>
   chainId === CHAIN_ID_SOLANA

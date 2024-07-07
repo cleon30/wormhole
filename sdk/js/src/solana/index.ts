@@ -12,3 +12,4 @@ export {
 } from "./wormhole";
 
 export * from "./wormhole/cpi";
+export * from "./tokenBridge/cpi";

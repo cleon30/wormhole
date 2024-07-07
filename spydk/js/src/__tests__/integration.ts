@@ -6,7 +6,7 @@ import { createSpyRPCServiceClient, subscribeSignedVAA } from "..";
 
 setDefaultWasm("node");
 
-jest.setTimeout(60000);
+jest.setTimeout(120000);
 const ci = !!process.env.CI;
 export const SOLANA_HOST = ci
   ? "http://solana-devnet:8899"
@@ -18,9 +18,9 @@ const SOLANA_PRIVATE_KEY = new Uint8Array([
   44, 165, 109, 233, 102, 14, 86, 109, 29, 134, 145, 132, 141,
 ]);
 const SOLANA_CORE_BRIDGE_ADDRESS =
-  "HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj";
+  "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o";
 const SOLANA_TOKEN_BRIDGE_ADDRESS =
-  "CiXCz22m2gQYe9NXzeAzruqZRUan5bYzRvMkVzBDQVJd";
+  "B6RHG3mfcckmrYN1UhmJzyS1XX3fZKbkeUcpJe9Sy3FE";
 const SPYMASTER = ci ? "spy:7072" : "localhost:7072";
 const TEST_SOLANA_TOKEN = "2WDq7wSs9zYrpx2kbHDA4RUTRch2CCTP6ZWaH4GNfnQQ";
 

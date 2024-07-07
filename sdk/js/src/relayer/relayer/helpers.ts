@@ -34,13 +34,13 @@ import {
   CCTPKey,
 } from "../structs";
 import { InfoRequestParams } from "./info";
+import { Implementation__factory } from "../../ethers-contracts/";
 import {
   DeliveryProvider,
   DeliveryProvider__factory,
-  Implementation__factory,
-} from "../../ethers-contracts/";
-import { DeliveryEvent } from "../../ethers-contracts/WormholeRelayer";
-import { VaaKeyStruct } from "../../ethers-contracts/IWormholeRelayer.sol/IWormholeRelayer";
+} from "../../ethers-relayer-contracts/";
+import { DeliveryEvent } from "../../ethers-relayer-contracts/WormholeRelayer";
+import { VaaKeyStruct } from "../../ethers-relayer-contracts/IWormholeRelayer.sol/IWormholeRelayer";
 
 export type DeliveryTargetInfo = {
   status: DeliveryStatus | string;
@@ -540,7 +540,7 @@ export async function getCCTPMessageLogURL(
     ethers.utils.toUtf8Bytes("MessageSent(bytes)")
   );
   try {
-    if (getNameFromCCTPDomain(cctpKey.domain) === sourceChain) {
+    if (getNameFromCCTPDomain(cctpKey.domain, environment) === sourceChain) {
       const cctpLogFilter = (log: ethers.providers.Log) => {
         return (
           log.topics[0] === DepositForBurnTopic &&

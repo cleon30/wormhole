@@ -172,7 +172,7 @@ export const handler = async (
     }));
   } else if (argv.wormscan) {
     const wormscanurl =
-      "https://api.wormscan.io/api/v1/observations/" +
+      "https://api.wormholescan.io/api/v1/observations/" +
       vaa.emitterChain.toString() +
       "/" +
       vaa.emitterAddress.replace(/^(0x)/, "") +
@@ -264,7 +264,10 @@ const getSigsFromWormscanData = (
       }
     }
     if (gsi < 0) {
-      throw new Error("Failed to look up guardian address " + guardianAddr);
+      console.warn(
+        "Failed to look up guardian address " + guardianAddr + ". Skipping."
+      );
+      continue;
     }
     let sig: Signature = {
       guardianSetIndex: gsi,

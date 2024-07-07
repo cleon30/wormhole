@@ -19,6 +19,7 @@ import (
 	gossipv1 "github.com/certusone/wormhole/node/pkg/proto/gossip/v1"
 	"github.com/certusone/wormhole/node/pkg/query"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethCrypto "github.com/ethereum/go-ethereum/crypto"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -26,6 +27,8 @@ import (
 	"github.com/tendermint/tendermint/libs/rand"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/gagliardetto/solana-go"
 )
 
 // this script has to be run inside kubernetes since it relies on UDP
@@ -115,6 +118,79 @@ func main() {
 
 	//
 	// END SETUP
+	//
+
+	//
+	// Solana Tests
+	//
+
+	{
+		logger.Info("Running Solana account test")
+
+		// Start of query creation...
+		account1, err := solana.PublicKeyFromBase58("Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o")
+		if err != nil {
+			panic("solana account1 is invalid")
+		}
+		account2, err := solana.PublicKeyFromBase58("B6RHG3mfcckmrYN1UhmJzyS1XX3fZKbkeUcpJe9Sy3FE")
+		if err != nil {
+			panic("solana account2 is invalid")
+		}
+		callRequest := &query.SolanaAccountQueryRequest{
+			Commitment:      "finalized",
+			DataSliceOffset: 0,
+			DataSliceLength: 100,
+			Accounts:        [][query.SolanaPublicKeyLength]byte{account1, account2},
+		}
+
+		queryRequest := &query.QueryRequest{
+			Nonce: rand.Uint32(),
+			PerChainQueries: []*query.PerChainQueryRequest{
+				{
+					ChainId: 1,
+					Query:   callRequest,
+				},
+			},
+		}
+		sendSolanaQueryAndGetRsp(queryRequest, sk, th_req, ctx, logger, sub)
+	}
+
+	{
+		logger.Info("Running Solana PDA test")
+
+		// Start of query creation...
+		callRequest := &query.SolanaPdaQueryRequest{
+			Commitment:      "finalized",
+			DataSliceOffset: 0,
+			DataSliceLength: 100,
+			PDAs: []query.SolanaPDAEntry{
+				query.SolanaPDAEntry{
+					ProgramAddress: ethCommon.HexToHash("0x02c806312cbe5b79ef8aa6c17e3f423d8fdfe1d46909fb1f6cdf65ee8e2e6faa"), // Devnet core bridge
+					Seeds: [][]byte{
+						[]byte("GuardianSet"),
+						make([]byte, 4),
+					},
+				},
+			},
+		}
+
+		queryRequest := &query.QueryRequest{
+			Nonce: rand.Uint32(),
+			PerChainQueries: []*query.PerChainQueryRequest{
+				{
+					ChainId: 1,
+					Query:   callRequest,
+				},
+			},
+		}
+		sendSolanaQueryAndGetRsp(queryRequest, sk, th_req, ctx, logger, sub)
+	}
+
+	logger.Info("Solana tests complete!")
+	// return
+
+	//
+	// EVM Tests
 	//
 
 	wethAbi, err := abi.JSON(strings.NewReader("[{\"constant\":true,\"inputs\":[],\"name\":\"name\",\"outputs\":[{\"name\":\"\",\"type\":\"string\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"totalSupply\",\"outputs\":[{\"name\":\"\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"}]"))
@@ -344,6 +420,100 @@ func sendQueryAndGetRsp(queryRequest *query.QueryRequest, sk *ecdsa.PrivateKey, 
 
 						resultStr := hexutil.Encode(resp)
 						logger.Info("found matching response", zap.Int("idx", idx), zap.Uint64("number", localResp.BlockNumber), zap.String("hash", localResp.Hash.String()), zap.String("time", localResp.Time.String()), zap.String("method", methods[idx]), zap.Any("resultDecoded", result), zap.String("resultStr", resultStr))
+					}
+				}
+			}
+		default:
+			continue
+		}
+		if isMatchingResponse {
+			break
+		}
+	}
+}
+
+func sendSolanaQueryAndGetRsp(queryRequest *query.QueryRequest, sk *ecdsa.PrivateKey, th *pubsub.Topic, ctx context.Context, logger *zap.Logger, sub *pubsub.Subscription) {
+	queryRequestBytes, err := queryRequest.Marshal()
+	if err != nil {
+		panic(err)
+	}
+	numQueries := len(queryRequest.PerChainQueries)
+
+	// Sign the query request using our private key.
+	digest := query.QueryRequestDigest(common.UnsafeDevNet, queryRequestBytes)
+	sig, err := ethCrypto.Sign(digest.Bytes(), sk)
+	if err != nil {
+		panic(err)
+	}
+
+	signedQueryRequest := &gossipv1.SignedQueryRequest{
+		QueryRequest: queryRequestBytes,
+		Signature:    sig,
+	}
+
+	msg := gossipv1.GossipMessage{
+		Message: &gossipv1.GossipMessage_SignedQueryRequest{
+			SignedQueryRequest: signedQueryRequest,
+		},
+	}
+
+	b, err := proto.Marshal(&msg)
+	if err != nil {
+		panic(err)
+	}
+
+	err = th.Publish(ctx, b)
+	if err != nil {
+		panic(err)
+	}
+
+	logger.Info("Waiting for message...")
+	// TODO: max wait time
+	// TODO: accumulate signatures to reach quorum
+	for {
+		envelope, err := sub.Next(ctx)
+		if err != nil {
+			logger.Panic("failed to receive pubsub message", zap.Error(err))
+		}
+		var msg gossipv1.GossipMessage
+		err = proto.Unmarshal(envelope.Data, &msg)
+		if err != nil {
+			logger.Info("received invalid message",
+				zap.Binary("data", envelope.Data),
+				zap.String("from", envelope.GetFrom().String()))
+			continue
+		}
+		var isMatchingResponse bool
+		switch m := msg.Message.(type) {
+		case *gossipv1.GossipMessage_SignedQueryResponse:
+			logger.Info("query response received", zap.Any("response", m.SignedQueryResponse),
+				zap.String("responseBytes", hexutil.Encode(m.SignedQueryResponse.QueryResponse)),
+				zap.String("sigBytes", hexutil.Encode(m.SignedQueryResponse.Signature)))
+			isMatchingResponse = true
+
+			var response query.QueryResponsePublication
+			err := response.Unmarshal(m.SignedQueryResponse.QueryResponse)
+			if err != nil {
+				logger.Warn("failed to unmarshal response", zap.Error(err))
+				break
+			}
+			if bytes.Equal(response.Request.QueryRequest, queryRequestBytes) && bytes.Equal(response.Request.Signature, sig) {
+				// TODO: verify response signature
+				isMatchingResponse = true
+
+				if len(response.PerChainResponses) != numQueries {
+					logger.Warn("unexpected number of per chain query responses", zap.Int("expectedNum", numQueries), zap.Int("actualNum", len(response.PerChainResponses)))
+					break
+				}
+				// Do double loop over responses
+				for index := range response.PerChainResponses {
+					switch r := response.PerChainResponses[index].Response.(type) {
+					case *query.SolanaAccountQueryResponse:
+						logger.Info("solana account query per chain response", zap.Int("index", index), zap.Any("pcr", r))
+					case *query.SolanaPdaQueryResponse:
+						logger.Info("solana pda query per chain response", zap.Int("index", index), zap.Any("pcr", r))
+					default:
+						panic(fmt.Sprintf("unsupported query type, should be solana, index: %d", index))
 					}
 				}
 			}

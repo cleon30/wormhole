@@ -1,6 +1,8 @@
 package evm
 
 import (
+	"errors"
+
 	"github.com/certusone/wormhole/node/pkg/common"
 	gossipv1 "github.com/certusone/wormhole/node/pkg/proto/gossip/v1"
 	"github.com/certusone/wormhole/node/pkg/query"
@@ -17,11 +19,13 @@ type WatcherConfig struct {
 	Rpc                    string             // RPC URL
 	Contract               string             // hex representation of the contract address
 	GuardianSetUpdateChain bool               // if `true`, we will retrieve the GuardianSet from this chain and watch this chain for GuardianSet updates
-	WaitForConfirmations   bool               // (optional)
-	RootChainRpc           string             // (optional)
-	RootChainContract      string             // (optional)
 	L1FinalizerRequired    watchers.NetworkID // (optional)
 	l1Finalizer            interfaces.L1Finalizer
+	CcqBackfillCache       bool
+
+	// These parameters are currently only used for Linea and should be set via SetLineaParams()
+	LineaRollUpUrl      string
+	LineaRollUpContract string
 }
 
 func (wc *WatcherConfig) GetNetworkID() watchers.NetworkID {
@@ -57,11 +61,14 @@ func (wc *WatcherConfig) Create(
 
 	var devMode bool = (env == common.UnsafeDevNet)
 
-	watcher := NewEthWatcher(wc.Rpc, eth_common.HexToAddress(wc.Contract), string(wc.NetworkID), wc.ChainID, msgC, setWriteC, obsvReqC, queryReqC, queryResponseC, devMode)
-	watcher.SetWaitForConfirmations(wc.WaitForConfirmations)
-	if err := watcher.SetRootChainParams(wc.RootChainRpc, wc.RootChainContract); err != nil {
-		return nil, nil, err
-	}
+	watcher := NewEthWatcher(wc.Rpc, eth_common.HexToAddress(wc.Contract), string(wc.NetworkID), wc.ChainID, msgC, setWriteC, obsvReqC, queryReqC, queryResponseC, devMode, wc.CcqBackfillCache)
 	watcher.SetL1Finalizer(wc.l1Finalizer)
+	if wc.ChainID == vaa.ChainIDLinea {
+		if err := watcher.SetLineaParams(wc.LineaRollUpUrl, wc.LineaRollUpContract); err != nil {
+			return nil, nil, err
+		}
+	} else if wc.LineaRollUpUrl != "" || wc.LineaRollUpContract != "" {
+		return nil, nil, errors.New("LineaRollUpUrl and LineaRollUpContract may only be specified for Linea")
+	}
 	return watcher, watcher.Run, nil
 }

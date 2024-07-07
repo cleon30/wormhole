@@ -4,7 +4,9 @@ import { Connection, PublicKey } from "@solana/web3.js";
 const ci = !!process.env.CI;
 
 // see devnet.md
-export const ETH_NODE_URL = ci ? "ws://eth-devnet:8545" : "ws://localhost:8545";
+export const ETH_NODE_URL = ci
+  ? "http://eth-devnet:8545"
+  : "http://localhost:8545";
 export const ETH_PRIVATE_KEY =
   "0x6cbed15c793ce57650b9877cf6fa156fbef513c4e6134f022a85b1ffdd59b2a1"; // account 1
 export const ETH_PRIVATE_KEY8 =
@@ -29,14 +31,9 @@ export const TERRA_NODE_URL = ci
   ? "http://terra-terrad:1317"
   : "http://localhost:1317";
 export const TERRA_CHAIN_ID = "localterra";
-export const TERRA_GAS_PRICES_URL = ci
-  ? "http://terra-fcd:3060/v1/txs/gas_prices"
-  : "http://localhost:3060/v1/txs/gas_prices";
 export const TERRA_PRIVATE_KEY =
   "quality vacuum heart guard buzz spike sight swarm shove special gym robust assume sudden deposit grid alcohol choice devote leader tilt noodle tide penalty";
 export const TEST_ERC721 = "0x5b9b42d6e4B2e4Bf8d42Eba32D46918e10899B66";
-export const TERRA_CW721_CODE_ID = 7;
-export const TEST_CW721 = "terra18dt935pdcn2ka6l0syy5gt20wa48n3mktvdvjj";
 export const TEST_SOLANA_TOKEN = "BVxyYhm498L79r4HMQ9sxZ5bi41DmJmeWZ7SCS7Cyvna";
 export const TEST_SOLANA_TOKEN3 =
   "AQJc65JzbzsT88JnGEXSqZaF8NFAXPo21fX4QUED4uRX";

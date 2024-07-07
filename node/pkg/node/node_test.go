@@ -34,7 +34,6 @@ import (
 	"github.com/certusone/wormhole/node/pkg/watchers"
 	"github.com/certusone/wormhole/node/pkg/watchers/mock"
 	eth_crypto "github.com/ethereum/go-ethereum/crypto"
-	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	libp2p_crypto "github.com/libp2p/go-libp2p/core/crypto"
 	libp2p_peer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/assert"
@@ -68,6 +67,8 @@ var CONSOLE_LOG_LEVEL = zap.InfoLevel
 const guardianSetIndex = 5 // index of the active guardian set (can be anything, just needs to be set to something)
 
 var TEST_ID_CTR atomic.Uint32
+
+var logger *zap.Logger
 
 func getTestId() uint {
 	return uint(TEST_ID_CTR.Add(1))
@@ -121,7 +122,7 @@ func newMockGuardianSet(t testing.TB, testId uint, n int) []*mockGuardian {
 			MockObservationC: make(chan *common.MessagePublication),
 			MockSetC:         make(chan *common.GuardianSet),
 			gk:               gk,
-			guardianAddr:     ethcrypto.PubkeyToAddress(gk.PublicKey),
+			guardianAddr:     eth_crypto.PubkeyToAddress(gk.PublicKey),
 			config:           createGuardianConfig(t, testId, uint(i)),
 		}
 	}
@@ -145,10 +146,9 @@ func mockGuardianRunnable(t testing.TB, gs []*mockGuardian, mockGuardianIndex ui
 		// Create a sub-context with cancel function that we can pass to G.run.
 		ctx, ctxCancel := context.WithCancel(ctx)
 		defer ctxCancel()
-		logger := supervisor.Logger(ctx)
 
 		// setup db
-		db := db.OpenDb(logger, nil)
+		db := db.OpenDb(nil, nil)
 		defer db.Close()
 		gs[mockGuardianIndex].db = db
 
@@ -190,7 +190,7 @@ func mockGuardianRunnable(t testing.TB, gs []*mockGuardian, mockGuardianIndex ui
 			GuardianOptionNoAccountant(), // disable accountant
 			GuardianOptionGovernor(true),
 			GuardianOptionGatewayRelayer("", nil), // disable gateway relayer
-			GuardianOptionP2P(gs[mockGuardianIndex].p2pKey, networkID, bootstrapPeers, nodeName, false, cfg.p2pPort, "", 0, "", func() string { return "" }),
+			GuardianOptionP2P(gs[mockGuardianIndex].p2pKey, networkID, bootstrapPeers, nodeName, false, cfg.p2pPort, "", 0, "", "", func() string { return "" }),
 			GuardianOptionPublicRpcSocket(cfg.publicSocket, publicRpcLogDetail),
 			GuardianOptionPublicrpcTcpService(cfg.publicRpc, publicRpcLogDetail),
 			GuardianOptionPublicWeb(cfg.publicWeb, cfg.publicSocket, "", false, ""),
@@ -511,8 +511,11 @@ func waitForStatusServer(ctx context.Context, logger *zap.Logger, statusAddr str
 }
 
 func TestMain(m *testing.M) {
+	logger, _ = zap.NewDevelopment()
 	readiness.NoPanic = true // otherwise we'd panic when running multiple guardians
-	os.Exit(m.Run())
+	retVal := m.Run()
+	logger.Info("test exiting", zap.Int("retVal", retVal))
+	os.Exit(retVal)
 }
 
 func createGovernanceMsgAndVaa(t testing.TB) (*common.MessagePublication, *nodev1.GovernanceMessage) {
@@ -648,8 +651,6 @@ func runConsensusTests(t *testing.T, testCases []testCase, numGuardians int) {
 	zapLogger, zapObserver, _ := setupLogsCapture(t)
 
 	supervisor.New(rootCtx, zapLogger, func(ctx context.Context) error {
-		logger := supervisor.Logger(ctx)
-
 		// create the Guardian Set
 		gs := newMockGuardianSet(t, testId, numGuardians)
 
@@ -668,10 +669,10 @@ func runConsensusTests(t *testing.T, testCases []testCase, numGuardians int) {
 		supervisor.Signal(ctx, supervisor.SignalHealthy)
 
 		// Inform them of the Guardian Set
-		commonGuardianSet := common.GuardianSet{
-			Keys:  mockGuardianSetToGuardianAddrList(t, gs),
-			Index: guardianSetIndex,
-		}
+		commonGuardianSet := *common.NewGuardianSet(
+			mockGuardianSetToGuardianAddrList(t, gs),
+			guardianSetIndex,
+		)
 		for i, g := range gs {
 			logger.Info("Sending guardian set update", zap.Int("guardian_index", i))
 			g.MockSetC <- &commonGuardianSet
@@ -838,8 +839,12 @@ func runConsensusTests(t *testing.T, testCases []testCase, numGuardians int) {
 
 	<-rootCtx.Done()
 	assert.NotEqual(t, rootCtx.Err(), context.DeadlineExceeded)
-	zapLogger.Info("Test root context cancelled, waiting 10ms for everything to shut down properly...")
-	time.Sleep(time.Millisecond * 10)
+
+	// There are some things that happen outside of the supervisor context and are a bit racey when the root context
+	// is shutdown. Namely some pkg/db bits, metrics sinks, and p2p logging. This gives them time to shutdown so the
+	// tests are happy.
+	zapLogger.Info("Test root context cancelled, waiting for everything to shut down properly...")
+	time.Sleep(time.Millisecond * 50)
 }
 
 type testCaseGuardianConfig struct {
@@ -906,7 +911,14 @@ func TestGuardianConfigs(t *testing.T) {
 		{
 			name: "unfulfilled-dependency",
 			opts: []*GuardianOption{
-				GuardianOptionAccountant("", "", false, nil),
+				GuardianOptionAccountant(
+					"",    // websocket
+					"",    // contract
+					false, // enforcing
+					nil,   // wormchainConn
+					"",    // nttContract
+					nil,   // nttWormchainConn
+				),
 			},
 			err: "Check the order of your options.",
 		},
@@ -943,7 +955,6 @@ func runGuardianConfigTests(t *testing.T, testCases []testCaseGuardianConfig) {
 			// Create a sub-context with cancel function that we can pass to G.run.
 			ctx, ctxCancel := context.WithCancel(ctx)
 			defer ctxCancel()
-			logger := supervisor.Logger(ctx)
 
 			if err := supervisor.Run(ctx, tc.name, NewGuardianNode(common.GoTest, nil).Run(ctxCancel, tc.opts...)); err != nil {
 				panic(err)
@@ -1003,7 +1014,7 @@ func (c fatalHook) OnWrite(ce *zapcore.CheckedEntry, fields []zapcore.Field) {
 func signingMsgs(n int) [][]byte {
 	msgs := make([][]byte, n)
 	for i := 0; i < len(msgs); i++ {
-		msgs[i] = ethcrypto.Keccak256Hash([]byte{byte(i)}).Bytes()
+		msgs[i] = eth_crypto.Keccak256Hash([]byte{byte(i)}).Bytes()
 	}
 	return msgs
 }
@@ -1027,7 +1038,7 @@ func signMsgsEth(pk *ecdsa.PrivateKey, msgs [][]byte) [][]byte {
 	signatures := make([][]byte, n)
 	// Ed25519.Sign
 	for i := 0; i < n; i++ {
-		sig, err := ethcrypto.Sign(msgs[i], pk)
+		sig, err := eth_crypto.Sign(msgs[i], pk)
 		if err != nil {
 			panic(err)
 		}
@@ -1099,9 +1110,9 @@ func BenchmarkCrypto(b *testing.B) {
 		})
 	})
 
-	b.Run("ethcrypto (secp256k1)", func(b *testing.B) {
+	b.Run("eth_crypto (secp256k1)", func(b *testing.B) {
 
-		gk := devnet.InsecureDeterministicEcdsaKeyByIndex(ethcrypto.S256(), 0)
+		gk := devnet.InsecureDeterministicEcdsaKeyByIndex(eth_crypto.S256(), 0)
 
 		b.Run("sign", func(b *testing.B) {
 			msgs := signingMsgs(b.N)
@@ -1116,7 +1127,7 @@ func BenchmarkCrypto(b *testing.B) {
 
 			// Ed25519.Verify
 			for i := 0; i < b.N; i++ {
-				_, err := ethcrypto.Ecrecover(msgs[i], signatures[i])
+				_, err := eth_crypto.Ecrecover(msgs[i], signatures[i])
 				assert.NoError(b, err)
 			}
 		})
@@ -1154,8 +1165,6 @@ func runConsensusBenchmark(t *testing.B, name string, numGuardians int, numMessa
 		zapLogger, zapObserver, setupLogsCapture := setupLogsCapture(t)
 
 		supervisor.New(rootCtx, zapLogger, func(ctx context.Context) error {
-			logger := supervisor.Logger(ctx)
-
 			// create the Guardian Set
 			gs := newMockGuardianSet(t, testId, numGuardians)
 
@@ -1174,10 +1183,10 @@ func runConsensusBenchmark(t *testing.B, name string, numGuardians int, numMessa
 			supervisor.Signal(ctx, supervisor.SignalHealthy)
 
 			// Inform them of the Guardian Set
-			commonGuardianSet := common.GuardianSet{
-				Keys:  mockGuardianSetToGuardianAddrList(t, gs),
-				Index: guardianSetIndex,
-			}
+			commonGuardianSet := *common.NewGuardianSet(
+				mockGuardianSetToGuardianAddrList(t, gs),
+				guardianSetIndex,
+			)
 			for i, g := range gs {
 				logger.Info("Sending guardian set update", zap.Int("guardian_index", i))
 				g.MockSetC <- &commonGuardianSet

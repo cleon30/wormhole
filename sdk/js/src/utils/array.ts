@@ -35,7 +35,12 @@ import {
   CHAIN_ID_COSMOSHUB,
   CHAIN_ID_EVMOS,
   CHAIN_ID_KUJIRA,
+  CHAIN_ID_NEUTRON,
   CHAIN_ID_CELESTIA,
+  CHAIN_ID_STARGAZE,
+  CHAIN_ID_SEDA,
+  CHAIN_ID_DYMENSION,
+  CHAIN_ID_PROVENANCE,
 } from "./consts";
 import { hashLookup } from "./near";
 import { getExternalAddressFromType, isValidAptosType } from "./aptos";
@@ -130,8 +135,18 @@ export const tryUint8ArrayToNative = (
     throw Error("uint8ArrayToNative: Evmos not supported yet.");
   } else if (chainId === CHAIN_ID_KUJIRA) {
     throw Error("uint8ArrayToNative: Kujira not supported yet.");
+  } else if (chainId === CHAIN_ID_NEUTRON) {
+    throw Error("uint8ArrayToNative: Neutron not supported yet.");
   } else if (chainId === CHAIN_ID_CELESTIA) {
     throw Error("uint8ArrayToNative: Celestia not supported yet.");
+  } else if (chainId === CHAIN_ID_STARGAZE) {
+    throw Error("uint8ArrayToNative: Stargaze not supported yet.");
+  } else if (chainId === CHAIN_ID_SEDA) {
+    throw Error("uint8ArrayToNative: Seda not supported yet.");
+  } else if (chainId === CHAIN_ID_DYMENSION) {
+    throw Error("uint8ArrayToNative: Dymension not supported yet.");
+  } else if (chainId === CHAIN_ID_PROVENANCE) {
+    throw Error("uint8ArrayToNative: Provenance not supported yet.");
   } else if (chainId === CHAIN_ID_SUI) {
     throw Error("uint8ArrayToNative: Sui not supported yet.");
   } else if (chainId === CHAIN_ID_APTOS) {
@@ -275,8 +290,18 @@ export const tryNativeToHexString = (
     throw Error("nativeToHexString: Evmos not supported yet.");
   } else if (chainId === CHAIN_ID_KUJIRA) {
     throw Error("nativeToHexString: Kujira not supported yet.");
+  } else if (chainId === CHAIN_ID_NEUTRON) {
+    throw Error("nativeToHexString: Neutron not supported yet.");
   } else if (chainId === CHAIN_ID_CELESTIA) {
     throw Error("nativeToHexString: Celestia not supported yet.");
+  } else if (chainId === CHAIN_ID_STARGAZE) {
+    throw Error("nativeToHexString: Stargaze not supported yet.");
+  } else if (chainId === CHAIN_ID_SEDA) {
+    throw Error("nativeToHexString: Seda not supported yet.");
+  } else if (chainId === CHAIN_ID_DYMENSION) {
+    throw Error("nativeToHexString: Dymension not supported yet.");
+  } else if (chainId === CHAIN_ID_PROVENANCE) {
+    throw Error("nativeToHexString: Provenance not supported yet.");
   } else if (chainId === CHAIN_ID_SUI) {
     if (!isValidSuiType(address) && isValidSuiAddress(address)) {
       return uint8ArrayToHex(

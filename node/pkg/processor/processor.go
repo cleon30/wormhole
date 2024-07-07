@@ -3,6 +3,7 @@ package processor
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -82,6 +83,16 @@ type (
 	}
 )
 
+// LoggingID can be used to identify a state object in a log message. Note that it should not
+// be used to uniquely identify an observation. It is only meant for logging purposes.
+func (s *state) LoggingID() string {
+	if s.ourObservation != nil {
+		return s.ourObservation.MessageID()
+	}
+
+	return hex.EncodeToString(s.txHash)
+}
+
 type PythNetVaaEntry struct {
 	v          *vaa.VAA
 	updateTime time.Time // Used for determining when to delete entries
@@ -135,14 +146,14 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "wormhole_signed_observation_channel_delay_us",
 			Help:    "Latency histogram for delay of signed observations in channel",
-			Buckets: []float64{10.0, 20.0, 50.0, 100.0, 1000.0, 5000.0, 10000.0},
+			Buckets: []float64{10.0, 20.0, 50.0, 100.0, 1000.0, 5000.0, 10000.0, 100_000.0, 1_000_000.0, 10_000_000.0, 100_000_000.0, 1_000_000_000.0},
 		})
 
 	observationTotalDelay = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "wormhole_signed_observation_total_delay_us",
 			Help:    "Latency histogram for total time to process signed observations",
-			Buckets: []float64{10.0, 20.0, 50.0, 100.0, 1000.0, 5000.0, 10000.0},
+			Buckets: []float64{10.0, 20.0, 50.0, 100.0, 1000.0, 5000.0, 10_000.0, 100_000.0, 1_000_000.0, 10_000_000.0, 100_000_000.0, 1_000_000_000.0},
 		})
 )
 
@@ -211,7 +222,9 @@ func (p *Processor) Run(ctx context.Context) error {
 		case p.gs = <-p.setC:
 			p.logger.Info("guardian set updated",
 				zap.Strings("set", p.gs.KeysAsHexStrings()),
-				zap.Uint32("index", p.gs.Index))
+				zap.Uint32("index", p.gs.Index),
+				zap.Int("quorum", p.gs.Quorum()),
+			)
 			p.gst.Set(p.gs)
 		case k := <-p.msgC:
 			if p.governor != nil {

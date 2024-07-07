@@ -5,4 +5,6 @@ export * from "./utils";
 export * from "./ethCall";
 export * from "./ethCallByTimestamp";
 export * from "./ethCallWithFinality";
+export * from "./solanaAccount";
+export * from "./solanaPda";
 export * from "./consts";

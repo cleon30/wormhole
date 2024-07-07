@@ -34,8 +34,7 @@ jobs:
           kubectl config set-context ci --namespace=$DEPLOY_NS
           kubectl config use-context ci
 
-      # temporarily set --guardiand_loglevel=info to debug https://github.com/wormhole-foundation/wormhole/issues/3052
-      - run: tilt ci -- --ci --namespace=$DEPLOY_NS --num=2 --guardiand_loglevel=info
+      - run: tilt ci --timeout 45m0s -- --ci --namespace=$DEPLOY_NS --num=2
         timeout-minutes: 60
 
       # Clean up k8s resources
@@ -49,7 +48,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
-          go-version: "1.20.10"
+          go-version: "1.21.9"
       - run: make node
 
   algorand:
@@ -71,7 +70,18 @@ jobs:
           node-version: "16"
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
-      - run: cd ethereum && make test
+      - run: cd ethereum && make test-push0 && make test
+
+  relayer-ethereum:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+      - run: cd relayer/ethereum && make test-push0 && make test
 
   ethereum-upgrade:
     runs-on: ubuntu-latest
@@ -84,25 +94,28 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
       - run: cd clients/js && make install
       - run: cd ethereum && make test-upgrade
-  solana-legacy:
+
+  solana:
     runs-on: ubuntu-20.04
+    container: ghcr.io/wormhole-foundation/solana:1.10.31@sha256:d31e8db926a1d3fbaa9d9211d9979023692614b7b64912651aba0383e8c01bad
+
     env:
       RUSTFLAGS: -Dwarnings
       EMITTER_ADDRESS: CiByUvEcx7w2HA4VHcPCBUAFQ73Won9kB36zW9VjirSr
-      BRIDGE_ADDRESS: HwTijR9KsZmCipXpCnPWaScMUCQHXJYcCYS5gWAnj5gj
+      BRIDGE_ADDRESS: Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o
 
     steps:
       - uses: actions/checkout@v3
       - name: Get rust toolchain version
         id: toolchain
         run: |
-          RUST_VERSION="$(awk '/channel =/ { print substr($3, 2, length($3)-2) }' solana/legacy/rust-toolchain)"
+          RUST_VERSION="$(awk '/channel =/ { print substr($3, 2, length($3)-2) }' solana/rust-toolchain)"
           echo "::set-output name=version::${RUST_VERSION}"
 
       - name: Get solana version
         id: solana
         run: |
-          SOLANA_VERSION="$(awk '/solana-program =/ { print substr($3, 3, length($3)-3) }' solana/legacy/bridge/program/Cargo.toml)"
+          SOLANA_VERSION="$(awk '/solana-program =/ { print substr($3, 3, length($3)-3) }' solana/bridge/program/Cargo.toml)"
           echo "::set-output name=version::${SOLANA_VERSION}"
 
       - name: Cache rust toolchain
@@ -134,48 +147,29 @@ jobs:
             ~/.cargo/bin
             ~/.cargo/registry
             ~/.cargo/git/db
-            solana/legacy/target
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('solana/legacy/Cargo.lock') }}
+            solana/target
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('solana/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-build-${{ env.cache-name }}-
             ${{ runner.os }}-build-
             ${{ runner.os }}-
 
       - name: Run `cargo fmt`
-        run: cargo fmt --check --all --manifest-path solana/legacy/Cargo.toml
+        run: cargo fmt --check --all --manifest-path solana/Cargo.toml
 
       - name: Run `cargo check`
-        run: cargo check --workspace --tests --manifest-path solana/legacy/Cargo.toml
+        run: cargo check --workspace --tests --manifest-path solana/Cargo.toml
           --features "nft-bridge/instructions token-bridge/instructions wormhole-bridge-solana/instructions"
 
       - name: Run `cargo clippy`
-        run: cargo clippy --workspace --tests --manifest-path solana/legacy/Cargo.toml
+        run: cargo clippy --workspace --tests --manifest-path solana/Cargo.toml
           --features "nft-bridge/instructions token-bridge/instructions wormhole-bridge-solana/instructions"
-
-      - name: Cache solana tools
-        id: cache-solana
-        uses: actions/cache@v3
-        env:
-          cache-name: solana-tools
-        with:
-          path: |
-            ~/.local/share/solana/install/
-            ~/.cache/solana/
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ steps.solana.outputs.version }}
-
-      - if: ${{ steps.cache-solana.outputs.cache-hit != 'true' }}
-        name: Install solana tools
-        env:
-          SOLANA_VERSION: ${{ steps.solana.outputs.version }}
-        run: |
-          sh -c "$(curl -sSfL https://release.solana.com/v${SOLANA_VERSION}/install)"
-          ~/.local/share/solana/install/active_release/bin/sdk/bpf/scripts/install.sh
 
       - name: Run unit tests
         env:
           RUST_BACKTRACE: "1"
         run: |
-          cd solana/legacy
+          cd solana
           export BPF_OUT_DIR="$(pwd)/target/deploy"
           export PATH="${HOME}/.local/share/solana/install/active_release/bin:${PATH}"
 
@@ -192,6 +186,8 @@ jobs:
           done
 
           cargo test --workspace --features "nft-bridge/instructions token-bridge/instructions wormhole-bridge-solana/instructions"
+        shell:
+          bash
 
   aptos:
     name: Aptos
@@ -275,7 +271,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
-          go-version: "1.20.10"
+          go-version: "1.21.9"
       - run: cd sdk/vaa && go test && go test -v -fuzz FuzzCalculateQuorum -run FuzzCalculateQuorum -fuzztime 15s
 
   # Run Go linters
@@ -292,20 +288,33 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
-          go-version: "1.20.10"
+          go-version: "1.21.9"
       - name: Install formatter
         run: go install golang.org/x/tools/cmd/goimports@v0.8.0
       - name: Formatting checks
         run: ./scripts/lint.sh -l -g format
       - name: Install linters
-        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.52.2
+        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.57.2
       - name: Run linters
-        run: make generate && ./scripts/lint.sh -g lint
+        run: make generate && golangci-lint --version && ./scripts/lint.sh -g lint
       - name: Ensure generated proto matches
         run: |
           rm -rf node/pkg/proto
           docker build --target go-export -f Dockerfile.proto -o type=local,dest=node .
           git diff --name-only --exit-code && echo "✅ Generated proto matches committed proto" || (echo "❌ Generated proto differs from committed proto, run \`rm -rf node/pkg/proto && docker build --target go-export -f Dockerfile.proto -o type=local,dest=node .\` and commit the result" >&2 && exit 1)
+
+  spellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned version of the v6 tag, which is a lightweight and hence mutable tag
+      - uses: streetsidesoftware/cspell-action@214db1e3138f326d33b7a6a51c92852e89ab0618
+        with:
+          # For now, only lint markdown files
+          files: "**/*.md"
+          inline: warning
+          # Only check files in the PR or push
+          incremental_files_only: true
 
   # Run Go tests
   node-tests:
@@ -321,7 +330,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
-          go-version: "1.20.10"
+          go-version: "1.21.9"
       # The go-ethereum and celo-blockchain packages both implement secp256k1 using the exact same header, but that causes duplicate symbols.
       - name: Run golang tests
         run: cd node && go test -v -timeout 5m -race -ldflags '-extldflags "-Wl,--allow-multiple-definition" ' ./...
@@ -334,9 +343,13 @@ jobs:
     strategy:
       matrix:
         manifest:
-          - cosmwasm/Cargo.toml
-          - terra/Cargo.toml
-          - sdk/rust/Cargo.toml
+          - path: cosmwasm/Cargo.toml
+            args: "--workspace --locked"
+          - path: terra/Cargo.toml
+            args: "--workspace --locked"
+          - path: sdk/rust/Cargo.toml
+            args: "--all-features --all-targets"
+    name: rust-lint-and-tests (${{ matrix.manifest.path }})
     steps:
       - name: Check out source
         uses: actions/checkout@v3
@@ -350,7 +363,7 @@ jobs:
       - name: Create cache key
         id: cachekey
         env:
-          MANIFEST: ${{ matrix.manifest }}
+          MANIFEST: ${{ matrix.manifest.path }}
         run: |
           LOCKFILE="$(dirname "${MANIFEST}")/Cargo.lock"
           NAME="${MANIFEST%%/*}"
@@ -364,20 +377,16 @@ jobs:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-build-${{ steps.cachekey.outputs.name }}-${{ steps.cachekey.outputs.hash }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ matrix.manifest }}-
+            ${{ runner.os }}-build-${{ matrix.manifest.path }}-
 
       - name: Run `rustfmt`
-        env:
-          MANIFEST: ${{ matrix.manifest }}
-        # In its infinite wisdom, `cargo fmt --all` will also format path-based dependencies so
-        # instead we have to manually format each ".rs" file.
-        run: find "$(dirname "${MANIFEST}")" -name '*.rs' -exec rustfmt --check {} +
+        run: cd $(dirname ${{ matrix.manifest.path }}) && cargo fmt --check
 
       - name: Run `cargo clippy`
-        run: cargo clippy --workspace --tests --locked --manifest-path ${{ matrix.manifest }}
+        run: cargo clippy ${{ matrix.manifest.args }} --tests --manifest-path ${{ matrix.manifest.path }}
 
       - name: Run unit tests
-        run: cargo test --workspace --locked --manifest-path ${{ matrix.manifest }}
+        run: cargo test ${{ matrix.manifest.args }} --manifest-path ${{ matrix.manifest.path }}
 
   docker:
     runs-on: ubuntu-latest
